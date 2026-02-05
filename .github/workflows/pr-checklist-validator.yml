@@ -32,18 +32,41 @@ jobs:
             ).length;
             const uncheckedBoxes = totalBoxes - checkedBoxes;
             
+            // Check for Linear URL/ticket
+            const linearRegex = /\*\*Linear ticket:\*\*[ \t]*([^\n]+)/i;
+            const linearMatch = prBody.match(linearRegex);
+            let linearError = null;
+            
+            if (!linearMatch) {
+              linearError = '❌ Linear ticket field not found in PR description';
+            } else {
+              const linearValue = linearMatch[1].trim();
+              // Check if it's still the placeholder or empty
+              if (!linearValue || linearValue === 'PRO-XXX' || linearValue === '') {
+                linearError = '❌ Linear ticket is not filled out (still showing placeholder "PRO-XXX")';
+              } else {
+                // Validate format: should be either a ticket ID (e.g., PRO-123) or a full Linear URL
+                const validLinearPattern = /^(?:https?:\/\/linear\.app\/[^\s]+|[A-Z]+-\d+)$/;
+                if (!validLinearPattern.test(linearValue)) {
+                  linearError = `❌ Linear ticket format is invalid: "${linearValue}" (expected format: PRO-123 or https://linear.app/...)`;
+                }
+              }
+            }
+            
             // Create a summary
             core.summary
               .addHeading('PR Checklist Validation Results')
               .addRaw(`Total checkboxes: ${totalBoxes}`)
               .addRaw(`\nChecked: ✅ ${checkedBoxes}`)
               .addRaw(`\nUnchecked: ❌ ${uncheckedBoxes}`)
+              .addRaw(`\nLinear ticket: ${linearError ? '❌ Invalid' : '✅ Valid'}`)
               .write();
             
             // Log the results
             console.log(`Total checkboxes: ${totalBoxes}`);
             console.log(`Checked: ${checkedBoxes}`);
             console.log(`Unchecked: ${uncheckedBoxes}`);
+            console.log(`Linear validation: ${linearError || 'Valid'}`);
             
             // Collect all errors
             const errors = [];
@@ -53,6 +76,10 @@ jobs:
                 `📊 Status: ${checkedBoxes}/${totalBoxes} items checked\n` +
                 `⚠️  Please check all ${uncheckedBoxes} remaining checkbox(es) in the PR description before merging.`
               );
+            }
+            
+            if (linearError) {
+              errors.push(`🔗 ${linearError}\n⚠️  Please add a valid Linear ticket (e.g., PRO-123 or full Linear URL).`);
             }
             
             // Fail if there are any errors
@@ -80,6 +107,25 @@ jobs:
             ).length;
             const uncheckedBoxes = totalBoxes - checkedBoxes;
             
+            // Check Linear ticket
+            const linearRegex = /\*\*Linear ticket:\*\*[ \t]*([^\n]+)/i;
+            const linearMatch = prBody.match(linearRegex);
+            let linearError = null;
+            
+            if (!linearMatch) {
+              linearError = 'Linear ticket field not found';
+            } else {
+              const linearValue = linearMatch[1].trim();
+              if (!linearValue || linearValue === 'PRO-XXX' || linearValue === '') {
+                linearError = 'Linear ticket is still showing placeholder "PRO-XXX"';
+              } else {
+                const validLinearPattern = /^(?:https?:\/\/linear\.app\/[^\s]+|[A-Z]+-\d+)$/;
+                if (!validLinearPattern.test(linearValue)) {
+                  linearError = `Linear ticket format is invalid: "${linearValue}"`;
+                }
+              }
+            }
+            
             // Check if we already commented
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -98,6 +144,9 @@ jobs:
             } else if (uncheckedBoxes > 0) {
               issues.push(`- ❌ **Checklist:** ${checkedBoxes}/${totalBoxes} items checked (${uncheckedBoxes} remaining)`);
             }
+            if (linearError) {
+              issues.push(`- ❌ **Linear ticket:** ${linearError}`);
+            }
             
             // Build steps dynamically with correct numbering
             let stepNum = 1;
@@ -108,6 +157,10 @@ jobs:
             } else if (uncheckedBoxes > 0) {
               steps.push(`${stepNum++}. Check all applicable boxes (\`- [x]\`)`);
               steps.push(`${stepNum++}. If an item doesn't apply, check it and add a note explaining why`);
+            }
+            
+            if (linearError) {
+              steps.push(`${stepNum++}. Add a valid Linear ticket (format: \`PRO-123\` or \`https://linear.app/...\`)`);
             }
             
             steps.push(`${stepNum}. Push an update or edit the PR description to re-trigger this check`);
@@ -172,6 +225,7 @@ jobs:
               '## ✅ PR Checklist Validation Passed',
               '',
               `**Status:** All ${totalBoxes} checklist items completed`,
+              '**Linear ticket:** Valid ✅',
               '',
               '🎉 This PR meets all requirements and is ready for review!',
               '',

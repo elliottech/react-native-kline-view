@@ -103,4 +103,42 @@ class RNKLineView: RCTViewManager {
         return view.getOrderLines()
     }
 
+    @objc func addBuySellMark(_ node: NSNumber, buySellMark: NSDictionary) {
+        DispatchQueue.main.async {
+            guard let view = self.bridge?.uiManager.view(forReactTag: node) as? HTKLineContainerView else {
+                print("RNKLineView: Could not find HTKLineContainerView for node \(node)")
+                return
+            }
+            view.addBuySellMark(buySellMark)
+        }
+    }
+
+    @objc func removeBuySellMark(_ node: NSNumber, buySellMarkId: NSString) {
+        DispatchQueue.main.async {
+            guard let view = self.bridge?.uiManager.view(forReactTag: node) as? HTKLineContainerView else {
+                print("RNKLineView: Could not find HTKLineContainerView for node \(node)")
+                return
+            }
+            view.removeBuySellMark(buySellMarkId as String)
+        }
+    }
+
+    @objc func updateBuySellMark(_ node: NSNumber, buySellMark: NSDictionary) {
+        DispatchQueue.main.async {
+            guard let view = self.bridge?.uiManager.view(forReactTag: node) as? HTKLineContainerView else {
+                print("RNKLineView: Could not find HTKLineContainerView for node \(node)")
+                return
+            }
+            view.updateBuySellMark(buySellMark)
+        }
+    }
+
+    @objc func getBuySellMarks(_ node: NSNumber) -> NSArray {
+        guard let view = self.bridge?.uiManager.view(forReactTag: node) as? HTKLineContainerView else {
+            print("RNKLineView: Could not find HTKLineContainerView for node \(node)")
+            return NSArray()
+        }
+        return view.getBuySellMarks()
+    }
+
 }

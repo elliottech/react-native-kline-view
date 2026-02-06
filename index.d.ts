@@ -16,6 +16,16 @@ declare module 'react-native-kline-view' {
     labelDescriptionColor?: string; // Optional color for the description text (defaults to labelColor if not specified)
   }
 
+  export interface BuySellMark {
+    id: string;
+    time: number;
+    type: 'buy' | 'sell';
+    amount: string;
+    price: string;
+    orderCount?: number;
+    tooltipText?: string;
+  }
+
   export interface RNKLineViewRef {
     updateLastCandlestick: (candlestick: any) => void;
     addCandlesticksAtTheEnd: (candlesticks: any[]) => void;
@@ -24,6 +34,10 @@ declare module 'react-native-kline-view' {
     removeOrderLine: (orderLineId: string) => void;
     updateOrderLine: (orderLine: OrderLine) => void;
     getOrderLines: () => OrderLine[];
+    addBuySellMark: (buySellMark: BuySellMark) => void;
+    removeBuySellMark: (buySellMarkId: string) => void;
+    updateBuySellMark: (buySellMark: BuySellMark) => void;
+    getBuySellMarks: () => BuySellMark[];
   }
 
   export interface RNKLineViewProps extends ViewProps {

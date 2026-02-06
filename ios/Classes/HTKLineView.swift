@@ -238,9 +238,19 @@ class HTKLineView: UIScrollView {
     }
 
     func calculateBaseHeight() {
-        self.visibleModelArray =
-            configManager.modelArray.count > 0
-            ? Array(configManager.modelArray[visibleRange]) : configManager.modelArray
+        // Safely handle visible model array calculation with bounds checking
+        if configManager.modelArray.count > 0 {
+            let startIndex = max(0, min(visibleRange.lowerBound, configManager.modelArray.count - 1))
+            let endIndex = max(0, min(visibleRange.upperBound, configManager.modelArray.count - 1))
+
+            if startIndex >= 0 && endIndex >= startIndex && endIndex < configManager.modelArray.count {
+                self.visibleModelArray = Array(configManager.modelArray[startIndex...endIndex])
+            } else {
+                self.visibleModelArray = configManager.modelArray
+            }
+        } else {
+            self.visibleModelArray = configManager.modelArray
+        }
         self.volumeRange =
             configManager.mainFlex...configManager.mainFlex + configManager.volumeFlex
 
@@ -329,6 +339,9 @@ class HTKLineView: UIScrollView {
                 volumeDraw.drawCandle(model, i, volumeMinMaxRange.upperBound, volumeMinMaxRange.lowerBound, volumeBaseY, volumeHeight, context, configManager)
             }
             childDraw?.drawCandle(model, i, childMinMaxRange.upperBound, childMinMaxRange.lowerBound, childBaseY, childHeight, context, configManager)
+
+            // Draw buy/sell marks for this candlestick if they exist (O(1) lookup)
+            drawBuySellMarksForCandlestick(model, i, context)
 
             let lastIndex = i == 0 ? i : i - 1
             let lastModel = visibleModelArray[lastIndex]
@@ -646,7 +659,29 @@ class HTKLineView: UIScrollView {
         guard !configManager.isMinute else {
             return
         }
-        let itemList = visibleModelArray[selectedIndex - visibleRange.lowerBound].selectedItemList
+
+        // Get the selected model and its basic selectedItemList
+        let selectedModel = visibleModelArray[selectedIndex - visibleRange.lowerBound]
+        var itemList = selectedModel.selectedItemList
+
+        // Check if there are buy/sell marks for this candlestick and add them to tooltip
+        if let containerView = superview as? HTKLineContainerView {
+            let candleTime = Int64(selectedModel.id)
+
+            // Add buy mark tooltip if exists
+            if let buyMark = containerView.getBuyMarkForTime(candleTime),
+               let tooltipText = buyMark["tooltipText"] as? String {
+                let buyTooltipItem = ["title": "", "detail": tooltipText]
+                itemList.append(buyTooltipItem)
+            }
+
+            // Add sell mark tooltip if exists
+            if let sellMark = containerView.getSellMarkForTime(candleTime),
+               let tooltipText = sellMark["tooltipText"] as? String {
+                let sellTooltipItem = ["title": "", "detail": tooltipText]
+                itemList.append(sellTooltipItem)
+            }
+        }
 
         let font = configManager.createFont(configManager.panelTextFontSize)
         let color = configManager.candleTextColor
@@ -883,6 +918,107 @@ class HTKLineView: UIScrollView {
                 context.setLineDash(phase: 0, lengths: [])
             }
         }
+    }
+
+    func drawBuySellMarksForCandlestick(_ model: HTKLineModel, _ index: Int, _ context: CGContext) {
+        // Access buy/sell marks from parent container view
+        guard let containerView = superview as? HTKLineContainerView else {
+            return
+        }
+
+        let candleTime = Int64(model.id) // Use model.id which contains the timestamp
+
+        // Check for both marks to handle collision detection
+        let buyMark = containerView.getBuyMarkForTime(candleTime)
+        let sellMark = containerView.getSellMarkForTime(candleTime)
+
+        // Check if both marks exist to handle collision avoidance
+        let hasBothMarks = buyMark != nil && sellMark != nil
+
+        // Draw buy mark
+        if let buyMark = buyMark {
+            drawBuySellMark(buyMark, model, index, "buy", context, hasBothMarks: hasBothMarks)
+        }
+
+        // Draw sell mark
+        if let sellMark = sellMark {
+            drawBuySellMark(sellMark, model, index, "sell", context, hasBothMarks: hasBothMarks)
+        }
+    }
+
+    private func drawBuySellMark(_ markData: [String: Any], _ model: HTKLineModel, _ index: Int, _ type: String, _ context: CGContext, hasBothMarks: Bool = false) {
+        // Calculate X position for the candlestick
+        let candleX = CGFloat(index) * configManager.itemWidth + configManager.itemWidth / 2
+
+        // Get the candlestick high price for positioning above it
+        let markPrice = model.high
+
+        // Convert price to Y coordinate
+        let priceRange = mainMinMaxRange.upperBound - mainMinMaxRange.lowerBound
+        let normalizedPrice = (markPrice - mainMinMaxRange.lowerBound) / priceRange
+        let markY = mainBaseY + mainHeight - CGFloat(normalizedPrice) * mainHeight
+
+        // Make circle radius match candlestick width (same as Android logic)
+        let circleRadius: CGFloat = configManager.itemWidth * 0.4 // 80% of candlestick width for diameter
+
+        // Position both marks above the candlestick, with collision avoidance
+        let markCenterY: CGFloat
+        if type == "buy" {
+            // Buy mark directly above the candlestick
+            markCenterY = markY - circleRadius - 2
+        } else { // sell
+            if hasBothMarks {
+                // If both marks exist, position sell mark one diameter higher
+                markCenterY = markY - circleRadius - 2 - (circleRadius * 2) - 2
+            } else {
+                // If only sell mark exists, position it directly above
+                markCenterY = markY - circleRadius - 2
+            }
+        }
+
+        // Determine colors and text based on type
+        let circleColor: UIColor
+        let markText: String
+
+        if type == "buy" {
+            circleColor = configManager.increaseColor
+            markText = "B"
+        } else { // sell
+            circleColor = configManager.decreaseColor
+            markText = "S"
+        }
+
+        // Draw circle
+        let circleRect = CGRect(x: candleX - circleRadius, y: markCenterY - circleRadius,
+                              width: circleRadius * 2, height: circleRadius * 2)
+        let circlePath = UIBezierPath(ovalIn: circleRect)
+
+        context.setFillColor(circleColor.cgColor)
+        context.addPath(circlePath.cgPath)
+        context.fillPath()
+
+        // Draw border
+        context.setStrokeColor(circleColor.cgColor)
+        context.setLineWidth(1.0)
+        context.setLineDash(phase: 0, lengths: []) // Solid line
+        context.addPath(circlePath.cgPath)
+        context.strokePath()
+
+        // Draw text inside circle
+        let fontSize: CGFloat = circleRadius * 1.2 // Text size proportional to circle (same as Android)
+        let font = configManager.createFont(fontSize)
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white
+        ]
+
+        let textSize = markText.size(withAttributes: textAttributes)
+        let textRect = CGRect(x: candleX - textSize.width / 2,
+                            y: markCenterY - textSize.height / 2,
+                            width: textSize.width,
+                            height: textSize.height)
+
+        markText.draw(in: textRect, withAttributes: textAttributes)
     }
 
     func valuePointFromViewPoint(_ point: CGPoint) -> CGPoint {

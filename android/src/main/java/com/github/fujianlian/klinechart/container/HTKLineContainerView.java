@@ -33,6 +33,11 @@ public class HTKLineContainerView extends RelativeLayout {
     // Order line management
     private Map<String, Map<String, Object>> orderLines = new HashMap<>();
 
+    // Buy/sell mark management - indexed by timestamp for O(1) lookup
+    private Map<Long, Map<String, Object>> buyMarks = new HashMap<>();
+    private Map<Long, Map<String, Object>> sellMarks = new HashMap<>();
+    private Map<String, Map<String, Object>> buySellMarks = new HashMap<>(); // Keep for compatibility
+
     public HTKLineContainerView(ThemedReactContext context) {
         super(context);
         this.reactContext = context;
@@ -646,6 +651,170 @@ public class HTKLineContainerView extends RelativeLayout {
     public Map<String, Map<String, Object>> getAllOrderLines() {
         synchronized (orderLines) {
             return new HashMap<>(orderLines);
+        }
+    }
+
+    public void addBuySellMark(Map<String, Object> buySellMarkData) {
+
+        if (buySellMarkData == null || !buySellMarkData.containsKey("id") ||
+            !buySellMarkData.containsKey("time") || !buySellMarkData.containsKey("type")) {
+            return;
+        }
+
+        String id = (String) buySellMarkData.get("id");
+        long time = ((Number) buySellMarkData.get("time")).longValue();
+        String type = (String) buySellMarkData.get("type");
+
+        // Store in compatibility map
+        synchronized (buySellMarks) {
+            buySellMarks.put(id, buySellMarkData);
+        }
+
+        // Store in efficient lookup maps by timestamp
+        if ("buy".equals(type)) {
+            synchronized (buyMarks) {
+                buyMarks.put(time, buySellMarkData);
+            }
+        } else if ("sell".equals(type)) {
+            synchronized (sellMarks) {
+                sellMarks.put(time, buySellMarkData);
+            }
+        }
+
+        android.util.Log.d("HTKLineContainerView", "Added " + type + " mark with id: " + id + " at time: " + time);
+
+        // Trigger redraw to show the buy/sell mark
+        post(new Runnable() {
+            @Override
+            public void run() {
+                klineView.invalidate();
+            }
+        });
+    }
+
+    public void removeBuySellMark(String buySellMarkId) {
+
+        if (buySellMarkId == null || buySellMarkId.trim().isEmpty()) {
+            return;
+        }
+
+        // Find and remove from efficient lookup maps
+        Map<String, Object> markData;
+        synchronized (buySellMarks) {
+            markData = buySellMarks.get(buySellMarkId);
+            if (markData != null) {
+                buySellMarks.remove(buySellMarkId);
+            }
+        }
+
+        if (markData != null && markData.containsKey("time") && markData.containsKey("type")) {
+            long time = ((Number) markData.get("time")).longValue();
+            String type = (String) markData.get("type");
+
+            if ("buy".equals(type)) {
+                synchronized (buyMarks) {
+                    buyMarks.remove(time);
+                }
+            } else if ("sell".equals(type)) {
+                synchronized (sellMarks) {
+                    sellMarks.remove(time);
+                }
+            }
+        }
+
+        android.util.Log.d("HTKLineContainerView", "Removed buy/sell mark with id: " + buySellMarkId);
+
+        // Trigger redraw to remove the buy/sell mark
+        post(new Runnable() {
+            @Override
+            public void run() {
+                klineView.invalidate();
+            }
+        });
+    }
+
+    public void updateBuySellMark(Map<String, Object> buySellMarkData) {
+
+        if (buySellMarkData == null || !buySellMarkData.containsKey("id") ||
+            !buySellMarkData.containsKey("time") || !buySellMarkData.containsKey("type")) {
+            return;
+        }
+
+        String id = (String) buySellMarkData.get("id");
+        long time = ((Number) buySellMarkData.get("time")).longValue();
+        String type = (String) buySellMarkData.get("type");
+
+        // Remove old entry from efficient lookup maps if it exists
+        Map<String, Object> oldMarkData;
+        synchronized (buySellMarks) {
+            oldMarkData = buySellMarks.get(id);
+            buySellMarks.put(id, buySellMarkData);
+        }
+
+        if (oldMarkData != null && oldMarkData.containsKey("time") && oldMarkData.containsKey("type")) {
+            long oldTime = ((Number) oldMarkData.get("time")).longValue();
+            String oldType = (String) oldMarkData.get("type");
+
+            if ("buy".equals(oldType)) {
+                synchronized (buyMarks) {
+                    buyMarks.remove(oldTime);
+                }
+            } else if ("sell".equals(oldType)) {
+                synchronized (sellMarks) {
+                    sellMarks.remove(oldTime);
+                }
+            }
+        }
+
+        // Add to efficient lookup maps
+        if ("buy".equals(type)) {
+            synchronized (buyMarks) {
+                buyMarks.put(time, buySellMarkData);
+            }
+        } else if ("sell".equals(type)) {
+            synchronized (sellMarks) {
+                sellMarks.put(time, buySellMarkData);
+            }
+        }
+
+        android.util.Log.d("HTKLineContainerView", "Updated " + type + " mark with id: " + id + " at time: " + time);
+
+        // Trigger redraw to update the buy/sell mark
+        post(new Runnable() {
+            @Override
+            public void run() {
+                klineView.invalidate();
+            }
+        });
+    }
+
+    public List<Map<String, Object>> getBuySellMarks() {
+
+        // Return all buy/sell marks as a list
+        synchronized (buySellMarks) {
+            List<Map<String, Object>> buySellMarksList = new ArrayList<>(buySellMarks.values());
+            android.util.Log.d("HTKLineContainerView", "Returning " + buySellMarksList.size() + " buy/sell marks");
+            return buySellMarksList;
+        }
+    }
+
+    // Method to allow KLineChartView to access buy/sell marks for drawing
+    public Map<String, Map<String, Object>> getAllBuySellMarks() {
+        synchronized (buySellMarks) {
+            return new HashMap<>(buySellMarks);
+        }
+    }
+
+    // Efficient O(1) lookup methods for buy/sell marks by timestamp
+    public Map<String, Object> getBuyMarkForTime(long time) {
+        synchronized (buyMarks) {
+            return buyMarks.get(time);
+        }
+    }
+
+    public Map<String, Object> getSellMarkForTime(long time) {
+        synchronized (sellMarks) {
+            return sellMarks.get(time);
         }
     }
 

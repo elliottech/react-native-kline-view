@@ -9,7 +9,8 @@ import {
 	StyleSheet,
 	StatusBar,
 	Platform,
-	PixelRatio
+	PixelRatio,
+	ScrollView
 } from 'react-native'
 import RNKLineView from 'react-native-kline-view'
 import { ThemeManager } from './utils/themes'
@@ -25,6 +26,8 @@ import {
 } from './utils/helpers'
 import Toolbar from './components/Toolbar'
 import ControlBar from './components/ControlBar'
+import OrderInput from './components/OrderInput'
+import BuySellMarkInput from './components/BuySellMarkInput'
 import Selectors from './components/Selectors'
 import {
 	processKLineData,
@@ -314,6 +317,130 @@ const App = () => {
 		})
 	}, [klineData, showVolumeChart,kLineViewRef.current])
 
+	// Order line management
+	const [orderIdCounter, setOrderIdCounter] = useState(1)
+	const [orderLines, setOrderLines] = useState({})
+
+	// Buy/sell mark management
+	const [buySellMarkIdCounter, setBuySellMarkIdCounter] = useState(1)
+	const [buySellMarks, setBuySellMarks] = useState({})
+
+	const handleAddLimitOrder = useCallback((price, label) => {
+		if (!kLineViewRef.current) return
+
+		const orderLine = {
+			id: `limit-order-${orderIdCounter}`,
+			type: 'limit',
+			price: price,
+			amount: 1,
+			color: '#00FF00', // Green color for the order line
+			label: label || `Limit ${orderIdCounter}`,
+			labelFontSize: 14,
+			labelBackgroundColor: '#114411AA', // Black background for the label pill
+			labelColor: '#FFFFFF', // Green color for the label text
+			labelDescription: 'BUY', // Description text
+			labelDescriptionColor: '#00FF00' // Gold color for the description text
+		}
+
+		console.log('Adding limit order:', orderLine)
+		kLineViewRef.current.addOrderLine(orderLine)
+		setOrderLines(prev => ({ ...prev, [orderLine.id]: orderLine }))
+		setOrderIdCounter(prev => prev + 1)
+	}, [kLineViewRef.current, orderIdCounter])
+
+	const handleUpdateOrder = useCallback((orderId, newPrice) => {
+		if (!kLineViewRef.current) return
+
+		const existingOrder = orderLines[orderId]
+		if (!existingOrder) {
+			console.warn(`Order with ID ${orderId} not found`)
+			return
+		}
+
+		const updatedOrderLine = {
+			...existingOrder,
+			price: newPrice,
+			color: '#FF9500', // Orange color for updated orders
+			label: `${existingOrder.label} (Updated)`,
+			labelFontSize: 12,
+			labelBackgroundColor: '#333333' // Dark gray background for updated orders
+		}
+
+		console.log('Updating order:', updatedOrderLine)
+		kLineViewRef.current.updateOrderLine(updatedOrderLine)
+		setOrderLines(prev => ({ ...prev, [orderId]: updatedOrderLine }))
+	}, [kLineViewRef.current, orderLines])
+
+	// Get current price for the input component
+	const getCurrentPrice = useCallback(() => {
+		if (klineData.length > 0) {
+			return klineData[klineData.length - 1].close
+		}
+		return null
+	}, [klineData])
+
+	// Buy/sell mark handlers
+	const handleAddBuySellMark = useCallback((type, time, price, amount, orderCount) => {
+		if (!kLineViewRef.current) return
+
+		const finalPrice = price || getCurrentPrice() || 0
+		const finalAmount = amount || '1.0'
+
+		const buySellMark = {
+			id: `buysell-mark-${buySellMarkIdCounter}`,
+			time: time,
+			type: type, // 'buy' or 'sell'
+			amount: finalAmount,
+			price: finalPrice.toString(),
+			orderCount: orderCount || 1,
+			tooltipText: `${type.toUpperCase()} ${finalAmount} at ${finalPrice.toFixed(2)}`
+		}
+
+		console.log('Adding buy/sell mark:', buySellMark)
+		kLineViewRef.current.addBuySellMark(buySellMark)
+		setBuySellMarks(prev => ({ ...prev, [buySellMark.id]: buySellMark }))
+		setBuySellMarkIdCounter(prev => prev + 1)
+	}, [kLineViewRef.current, buySellMarkIdCounter, getCurrentPrice])
+
+	const handleRemoveBuySellMark = useCallback((markId) => {
+		if (!kLineViewRef.current) return
+
+		console.log('Removing buy/sell mark:', markId)
+		kLineViewRef.current.removeBuySellMark(markId)
+		setBuySellMarks(prev => {
+			const newMarks = { ...prev }
+			delete newMarks[markId]
+			return newMarks
+		})
+	}, [kLineViewRef.current])
+
+	const handleUpdateBuySellMark = useCallback((markId, newType, newPrice, newAmount, newOrderCount) => {
+		if (!kLineViewRef.current) return
+
+		const existingMark = buySellMarks[markId]
+		if (!existingMark) {
+			console.warn(`Buy/sell mark with ID ${markId} not found`)
+			return
+		}
+
+		const finalType = newType || existingMark.type
+		const finalPrice = newPrice || parseFloat(existingMark.price)
+		const finalAmount = newAmount || existingMark.amount
+
+		const updatedMark = {
+			...existingMark,
+			type: finalType,
+			price: finalPrice.toString(),
+			amount: finalAmount,
+			orderCount: newOrderCount || existingMark.orderCount,
+			tooltipText: `${finalType.toUpperCase()} ${finalAmount} at ${finalPrice.toFixed(2)}`
+		}
+
+		console.log('Updating buy/sell mark:', updatedMark)
+		kLineViewRef.current.updateBuySellMark(updatedMark)
+		setBuySellMarks(prev => ({ ...prev, [markId]: updatedMark }))
+	}, [kLineViewRef.current, buySellMarks])
+
 
 
 	const renderKLineChart = useCallback((styles) => {
@@ -383,53 +510,78 @@ const App = () => {
 			/>
 
 			{/* K-line chart */}
-			{renderKLineChart(styles)}
+			<View style={{height: 400}}>
+				{renderKLineChart(styles)}
+			</View>
 
-			{/* Bottom control bar */}
-			<ControlBar
-				theme={theme}
-				selectedTimeType={selectedTimeType}
-				selectedMainIndicator={selectedMainIndicator}
-				selectedSubIndicator={selectedSubIndicator}
-				selectedDrawTool={selectedDrawTool}
-				showVolumeChart={showVolumeChart}
-				candleCornerRadius={candleCornerRadius}
-				onShowTimeSelector={() => setShowTimeSelector(true)}
-				onShowIndicatorSelector={() => setShowIndicatorSelector(true)}
-				onToggleDrawToolSelector={() => {
-					setShowDrawToolSelector(!showDrawToolSelector)
-					setShowIndicatorSelector(false)
-					setShowTimeSelector(false)
-				}}
-				onClearDrawings={clearDrawings}
-				onToggleVolume={() => {
-					setShowVolumeChart(!showVolumeChart)
-					setTimeout(() => reloadKLineData(), 0)
-				}}
-				onToggleRounded={() => {
-					setCandleCornerRadius(candleCornerRadius > 0 ? 0 : 1)
-					setTimeout(() => reloadKLineData(), 0)
-				}}
-			/>
 
-			{/* Selector popup */}
-			<Selectors
-				theme={theme}
-				showTimeSelector={showTimeSelector}
-				showIndicatorSelector={showIndicatorSelector}
-				showDrawToolSelector={showDrawToolSelector}
-				selectedTimeType={selectedTimeType}
-				selectedMainIndicator={selectedMainIndicator}
-				selectedSubIndicator={selectedSubIndicator}
-				selectedDrawTool={selectedDrawTool}
-				drawShouldContinue={drawShouldContinue}
-				onSelectTimeType={selectTimeType}
-				onSelectIndicator={selectIndicator}
-				onSelectDrawTool={selectDrawTool}
-				onCloseTimeSelector={() => setShowTimeSelector(false)}
-				onCloseIndicatorSelector={() => setShowIndicatorSelector(false)}
-				onToggleDrawShouldContinue={(value) => setDrawShouldContinue(value)}
-			/>
+			<ScrollView style={{maxHeight: 400}}>
+				{/* Order input */}
+				<OrderInput
+					theme={theme}
+					onAddOrder={handleAddLimitOrder}
+					onUpdateOrder={handleUpdateOrder}
+					currentPrice={getCurrentPrice()}
+					orderLines={orderLines}
+				/>
+
+				{/* Buy/Sell mark input */}
+				<BuySellMarkInput
+					theme={theme}
+					onAddBuySellMark={handleAddBuySellMark}
+					onRemoveBuySellMark={handleRemoveBuySellMark}
+					onUpdateBuySellMark={handleUpdateBuySellMark}
+					currentPrice={getCurrentPrice()}
+					buySellMarks={buySellMarks}
+					klineData={klineData}
+				/>
+
+				{/* Bottom control bar */}
+				<ControlBar
+					theme={theme}
+					selectedTimeType={selectedTimeType}
+					selectedMainIndicator={selectedMainIndicator}
+					selectedSubIndicator={selectedSubIndicator}
+					selectedDrawTool={selectedDrawTool}
+					showVolumeChart={showVolumeChart}
+					candleCornerRadius={candleCornerRadius}
+					onShowTimeSelector={() => setShowTimeSelector(true)}
+					onShowIndicatorSelector={() => setShowIndicatorSelector(true)}
+					onToggleDrawToolSelector={() => {
+						setShowDrawToolSelector(!showDrawToolSelector)
+						setShowIndicatorSelector(false)
+						setShowTimeSelector(false)
+					}}
+					onClearDrawings={clearDrawings}
+					onToggleVolume={() => {
+						setShowVolumeChart(!showVolumeChart)
+						setTimeout(() => reloadKLineData(), 0)
+					}}
+					onToggleRounded={() => {
+						setCandleCornerRadius(candleCornerRadius > 0 ? 0 : 1)
+						setTimeout(() => reloadKLineData(), 0)
+					}}
+				/>
+
+				{/* Selector popup */}
+				<Selectors
+					theme={theme}
+					showTimeSelector={showTimeSelector}
+					showIndicatorSelector={showIndicatorSelector}
+					showDrawToolSelector={showDrawToolSelector}
+					selectedTimeType={selectedTimeType}
+					selectedMainIndicator={selectedMainIndicator}
+					selectedSubIndicator={selectedSubIndicator}
+					selectedDrawTool={selectedDrawTool}
+					drawShouldContinue={drawShouldContinue}
+					onSelectTimeType={selectTimeType}
+					onSelectIndicator={selectIndicator}
+					onSelectDrawTool={selectDrawTool}
+					onCloseTimeSelector={() => setShowTimeSelector(false)}
+					onCloseIndicatorSelector={() => setShowIndicatorSelector(false)}
+					onToggleDrawShouldContinue={(value) => setDrawShouldContinue(value)}
+				/>
+			</ScrollView>
 		</View>
 	)
 }

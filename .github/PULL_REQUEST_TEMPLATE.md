@@ -1,14 +1,10 @@
-## Proposed Change
+# Pull Request
 
-_Describe what this pull request does?_
+## Summary
+_Explain what this PR does and why it is needed._
 
-## To-Do
+**Linear ticket:** PRO-XXX
 
-_Add to-do items here_
-
-- [ ] Does it need backend deployment?
-- [ ] Does it need confirmation on calculations?
-
-## Screenshot
-
-_Add screenshots or short video_
+## Author Checklist
+- [ ] PR tested locally
+- [ ] PR tested on preview

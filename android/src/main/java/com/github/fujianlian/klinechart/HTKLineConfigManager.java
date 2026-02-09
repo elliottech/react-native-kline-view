@@ -223,6 +223,8 @@ public class HTKLineConfigManager {
     	    idValue = keyValue.get("time");
     	}
     	entity.id = idValue != null ? ((Number)idValue).intValue() : 0;
+    	// Store original timestamp as long to preserve precision for buy/sell marks
+    	entity.timestamp = idValue != null ? ((Number)idValue).longValue() : 0;
 
     	// Handle dateString with fallback
     	Object dateValue = keyValue.get("dateString");

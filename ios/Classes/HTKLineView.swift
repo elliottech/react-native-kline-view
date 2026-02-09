@@ -9,6 +9,39 @@
 import Lottie
 import UIKit
 
+// Extension to create UIColor from hex string with transparency support
+extension UIColor {
+    convenience init?(hexString: String) {
+        let hex = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scanner = Scanner(string: hex.hasPrefix("#") ? String(hex.dropFirst()) : hex)
+        var rgbValue: UInt64 = 0
+
+        guard scanner.scanHexInt64(&rgbValue) else {
+            return nil
+        }
+
+        let cleanHex = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        let length = cleanHex.count
+
+        if length == 8 {
+            // 8-digit hex with alpha: #RRGGBBAA (React Native style)
+            let red = CGFloat((rgbValue & 0xFF000000) >> 24) / 255.0
+            let green = CGFloat((rgbValue & 0x00FF0000) >> 16) / 255.0
+            let blue = CGFloat((rgbValue & 0x0000FF00) >> 8) / 255.0
+            let alpha = CGFloat(rgbValue & 0x000000FF) / 255.0
+            self.init(red: red, green: green, blue: blue, alpha: alpha)
+        } else if length == 6 {
+            // 6-digit hex without alpha: #RRGGBB
+            let red = CGFloat((rgbValue & 0xFF0000) >> 16) / 255.0
+            let green = CGFloat((rgbValue & 0x00FF00) >> 8) / 255.0
+            let blue = CGFloat(rgbValue & 0x0000FF) / 255.0
+            self.init(red: red, green: green, blue: blue, alpha: 1.0)
+        } else {
+            return nil
+        }
+    }
+}
+
 class HTKLineView: UIScrollView {
 
     var configManager: HTKLineConfigManager
@@ -192,6 +225,7 @@ class HTKLineView: UIScrollView {
                 drawValue(context)
 
                 drawHighLow(context)
+                drawOrderLines(context)
                 drawTime(context)
                 drawClosePrice(context)
                 drawSelectedLine(context)
@@ -204,9 +238,19 @@ class HTKLineView: UIScrollView {
     }
 
     func calculateBaseHeight() {
-        self.visibleModelArray =
-            configManager.modelArray.count > 0
-            ? Array(configManager.modelArray[visibleRange]) : configManager.modelArray
+        // Safely handle visible model array calculation with bounds checking
+        if configManager.modelArray.count > 0 {
+            let startIndex = max(0, min(visibleRange.lowerBound, configManager.modelArray.count - 1))
+            let endIndex = max(0, min(visibleRange.upperBound, configManager.modelArray.count - 1))
+
+            if startIndex >= 0 && endIndex >= startIndex && endIndex < configManager.modelArray.count {
+                self.visibleModelArray = Array(configManager.modelArray[startIndex...endIndex])
+            } else {
+                self.visibleModelArray = configManager.modelArray
+            }
+        } else {
+            self.visibleModelArray = configManager.modelArray
+        }
         self.volumeRange =
             configManager.mainFlex...configManager.mainFlex + configManager.volumeFlex
 
@@ -295,6 +339,9 @@ class HTKLineView: UIScrollView {
                 volumeDraw.drawCandle(model, i, volumeMinMaxRange.upperBound, volumeMinMaxRange.lowerBound, volumeBaseY, volumeHeight, context, configManager)
             }
             childDraw?.drawCandle(model, i, childMinMaxRange.upperBound, childMinMaxRange.lowerBound, childBaseY, childHeight, context, configManager)
+
+            // Draw buy/sell marks for this candlestick if they exist (O(1) lookup)
+            drawBuySellMarksForCandlestick(model, i, context)
 
             let lastIndex = i == 0 ? i : i - 1
             let lastModel = visibleModelArray[lastIndex]
@@ -453,14 +500,6 @@ class HTKLineView: UIScrollView {
         closePriceLabelFrame = adjustedRect
         print("HTKLineView: Set closePriceLabelFrame (center): \(rect) -> adjusted: \(adjustedRect)")
 
-        context.saveGState()
-        context.setLineDash(phase: 0, lengths: [4, 4])
-        context.setStrokeColor(configManager.closePriceCenterSeparatorColor.cgColor)
-        context.setLineWidth(configManager.lineWidth / 2)
-        context.addLines(between: [CGPoint.init(x: 0, y: y), CGPoint.init(x: allWidth, y: y)])
-        context.strokePath()
-        context.restoreGState()
-
         let rectPath = UIBezierPath.init(roundedRect: rect, cornerRadius: rect.size.height / 2)
         context.setFillColor(configManager.closePriceCenterBackgroundColor.cgColor)
         context.addPath(rectPath.cgPath)
@@ -490,15 +529,6 @@ class HTKLineView: UIScrollView {
 
     func drawClosePriceRight(_ context: CGContext, _ lastModel: HTKLineModel, _ offset: CGFloat) {
         let y = yFromValue(lastModel.close)
-        context.saveGState()
-        context.setLineDash(phase: 0, lengths: [4, 4])
-        context.setStrokeColor(configManager.closePriceRightSeparatorColor.cgColor)
-        context.setLineWidth(configManager.lineWidth / 2)
-        let x = offset + configManager.itemWidth / 2
-        context.addLines(between: [CGPoint.init(x: x, y: y), CGPoint.init(x: allWidth, y: y)])
-        context.strokePath()
-        context.restoreGState()
-
         let title = configManager.precision(lastModel.close, configManager.price)
         let font = configManager.createFont(configManager.rightTextFontSize)
         let color = configManager.closePriceRightSeparatorColor
@@ -527,7 +557,7 @@ class HTKLineView: UIScrollView {
             animationView.isHidden = false
             UIView.animate(withDuration: 0.15) {
                 self.animationView.center = CGPoint.init(
-                    x: x + self.configManager.itemWidth / 2 + self.contentOffset.x, y: y)
+                    x: rect.origin.x + self.configManager.itemWidth / 2 + self.contentOffset.x, y: y)
             }
         }
     }
@@ -629,7 +659,29 @@ class HTKLineView: UIScrollView {
         guard !configManager.isMinute else {
             return
         }
-        let itemList = visibleModelArray[selectedIndex - visibleRange.lowerBound].selectedItemList
+
+        // Get the selected model and its basic selectedItemList
+        let selectedModel = visibleModelArray[selectedIndex - visibleRange.lowerBound]
+        var itemList = selectedModel.selectedItemList
+
+        // Check if there are buy/sell marks for this candlestick and add them to tooltip
+        if let containerView = superview as? HTKLineContainerView {
+            let candleTime = Int64(selectedModel.id)
+
+            // Add buy mark tooltip if exists
+            if let buyMark = containerView.getBuyMarkForTime(candleTime),
+               let tooltipText = buyMark["tooltipText"] as? String {
+                let buyTooltipItem = ["title": "", "detail": tooltipText]
+                itemList.append(buyTooltipItem)
+            }
+
+            // Add sell mark tooltip if exists
+            if let sellMark = containerView.getSellMarkForTime(candleTime),
+               let tooltipText = sellMark["tooltipText"] as? String {
+                let sellTooltipItem = ["title": "", "detail": tooltipText]
+                itemList.append(sellTooltipItem)
+            }
+        }
 
         let font = configManager.createFont(configManager.panelTextFontSize)
         let color = configManager.candleTextColor
@@ -706,6 +758,267 @@ class HTKLineView: UIScrollView {
             point: CGPoint.init(
                 x: x - width / 2.0, y: y + (configManager.paddingBottom - height) / 2),
             color: color, font: font, context: context, configManager: configManager)
+    }
+
+    func drawOrderLines(_ context: CGContext) {
+        // Access order lines from parent container view
+        guard let containerView = superview as? HTKLineContainerView else {
+            return
+        }
+
+        let orderLines = containerView.getAllOrderLines()
+
+        for (_, orderLineData) in orderLines {
+            guard let price = orderLineData["price"] as? Double,
+                  let type = orderLineData["type"] as? String else {
+                continue
+            }
+
+            // Convert price to Y coordinate
+            let priceRange = mainMinMaxRange.upperBound - mainMinMaxRange.lowerBound
+            let normalizedPrice = (price - mainMinMaxRange.lowerBound) / priceRange
+            let y = mainBaseY + mainHeight - CGFloat(normalizedPrice) * mainHeight
+
+            // Only draw if the price is within the visible range
+            if y >= mainBaseY && y <= mainBaseY + mainHeight {
+                // Set line style based on order type
+                context.setLineWidth(1.0)
+
+                // Use color property if available, otherwise default to orange
+                var lineColor = UIColor.orange
+                if let colorString = orderLineData["color"] as? String {
+                    lineColor = UIColor(hexString: colorString) ?? UIColor.orange
+                }
+                context.setStrokeColor(lineColor.cgColor)
+
+                // Create dashed line pattern
+                let dashPattern: [CGFloat] = [5.0, 3.0]
+                context.setLineDash(phase: 0, lengths: dashPattern)
+
+                // Calculate line start position (after label if it exists)
+                var lineStartX: CGFloat = 0
+
+                // Draw label if available and calculate where line should start
+                if let label = orderLineData["label"] as? String, !label.isEmpty {
+                    let fontSize = (orderLineData["labelFontSize"] as? CGFloat) ?? 12.0
+                    let font = configManager.createFont(fontSize)
+
+                    // Get label color (defaults to line color)
+                    var labelColor = lineColor
+                    if let labelColorString = orderLineData["labelColor"] as? String {
+                        labelColor = UIColor(hexString: labelColorString) ?? lineColor
+                    }
+
+                    // Calculate label size
+                    let labelAttributes: [NSAttributedString.Key: Any] = [
+                        .font: font,
+                        .foregroundColor: labelColor
+                    ]
+                    let labelSize = label.size(withAttributes: labelAttributes)
+
+                    // Calculate description size if available
+                    var descriptionSize = CGSize.zero
+                    var descriptionColor = labelColor
+                    var description: String? = nil
+
+                    if let desc = orderLineData["labelDescription"] as? String, !desc.isEmpty {
+                        description = desc
+
+                        // Get description color (defaults to label color)
+                        if let descriptionColorString = orderLineData["labelDescriptionColor"] as? String {
+                            descriptionColor = UIColor(hexString: descriptionColorString) ?? labelColor
+                        }
+
+                        let descriptionAttributes: [NSAttributedString.Key: Any] = [
+                            .font: font,
+                            .foregroundColor: descriptionColor
+                        ]
+                        descriptionSize = desc.size(withAttributes: descriptionAttributes)
+                    }
+
+                    // Calculate total width (label + space + description)
+                    let spacing: CGFloat = description != nil ? 4 : 0
+                    let totalTextWidth = labelSize.width + spacing + descriptionSize.width
+                    let textHeight = max(labelSize.height, descriptionSize.height)
+
+                    // Pill container dimensions (match close price pill)
+                    let horizontalPadding: CGFloat = 7
+                    let verticalPadding: CGFloat = 5
+                    let outerPadding: CGFloat = 8
+
+                    let pillWidth = totalTextWidth + horizontalPadding * 2
+                    let pillHeight = textHeight + verticalPadding * 2
+
+                    let labelX = outerPadding
+                    let labelY = y - pillHeight / 2
+
+                    // Only draw label if there's enough space
+                    if labelX + pillWidth + outerPadding < allWidth / 3 {
+                        // Draw pill background
+                        let pillRect = CGRect(x: labelX, y: labelY, width: pillWidth, height: pillHeight)
+                        // Use same radius calculation as close price pill
+                        let pillPath = UIBezierPath(roundedRect: pillRect, cornerRadius: pillRect.size.height / 2)
+
+                        // Get background color or use default
+                        var backgroundColor = UIColor.clear
+                        if let backgroundColorString = orderLineData["labelBackgroundColor"] as? String {
+                            backgroundColor = UIColor(hexString: backgroundColorString) ?? UIColor.clear
+                        }
+
+                        // Fill background (ensure alpha blending is enabled)
+                        context.setBlendMode(.normal)
+                        context.setFillColor(backgroundColor.cgColor)
+                        context.addPath(pillPath.cgPath)
+                        context.fillPath()
+
+                        // Draw border with same color as text (reset dash pattern first)
+                        context.setLineDash(phase: 0, lengths: [])
+                        context.setStrokeColor(lineColor.cgColor)
+                        context.setLineWidth(1.0)
+                        context.addPath(pillPath.cgPath)
+                        context.strokePath()
+
+                        // Restore dashed line pattern for the order line
+                        let dashPattern: [CGFloat] = [5.0, 3.0]
+                        context.setLineDash(phase: 0, lengths: dashPattern)
+
+                        // Draw label text
+                        let labelTextX = labelX + horizontalPadding
+                        let labelTextY = labelY + verticalPadding
+                        let labelRect = CGRect(x: labelTextX, y: labelTextY, width: labelSize.width, height: labelSize.height)
+                        label.draw(in: labelRect, withAttributes: labelAttributes)
+
+                        // Draw description text if available
+                        if let description = description {
+                            let descriptionTextX = labelTextX + labelSize.width + spacing
+                            let descriptionTextY = labelY + verticalPadding
+                            let descriptionRect = CGRect(x: descriptionTextX, y: descriptionTextY, width: descriptionSize.width, height: descriptionSize.height)
+                            let descriptionAttributes: [NSAttributedString.Key: Any] = [
+                                .font: font,
+                                .foregroundColor: descriptionColor
+                            ]
+                            description.draw(in: descriptionRect, withAttributes: descriptionAttributes)
+                        }
+
+                        // Set line to start after pill with additional padding
+                        lineStartX = labelX + pillWidth + outerPadding
+                    }
+                }
+
+                // Draw horizontal line starting after the label (or from 0 if no label)
+                // Stop before the Y-axis scale area (paddingRight)
+                // Ensure correct line color is set just before drawing the line
+                context.setStrokeColor(lineColor.cgColor)
+                let lineEndX = allWidth - configManager.paddingRight
+                context.move(to: CGPoint(x: lineStartX, y: y))
+                context.addLine(to: CGPoint(x: lineEndX, y: y))
+                context.strokePath()
+
+                // Reset dash pattern for other drawing operations
+                context.setLineDash(phase: 0, lengths: [])
+            }
+        }
+    }
+
+    func drawBuySellMarksForCandlestick(_ model: HTKLineModel, _ index: Int, _ context: CGContext) {
+        // Access buy/sell marks from parent container view
+        guard let containerView = superview as? HTKLineContainerView else {
+            return
+        }
+
+        let candleTime = Int64(model.id) // Use model.id which contains the timestamp
+
+        // Check for both marks to handle collision detection
+        let buyMark = containerView.getBuyMarkForTime(candleTime)
+        let sellMark = containerView.getSellMarkForTime(candleTime)
+
+        // Check if both marks exist to handle collision avoidance
+        let hasBothMarks = buyMark != nil && sellMark != nil
+
+        // Draw buy mark
+        if let buyMark = buyMark {
+            drawBuySellMark(buyMark, model, index, "buy", context, hasBothMarks: hasBothMarks)
+        }
+
+        // Draw sell mark
+        if let sellMark = sellMark {
+            drawBuySellMark(sellMark, model, index, "sell", context, hasBothMarks: hasBothMarks)
+        }
+    }
+
+    private func drawBuySellMark(_ markData: [String: Any], _ model: HTKLineModel, _ index: Int, _ type: String, _ context: CGContext, hasBothMarks: Bool = false) {
+        // Calculate X position for the candlestick
+        let candleX = CGFloat(index) * configManager.itemWidth + configManager.itemWidth / 2
+
+        // Get the candlestick high price for positioning above it
+        let markPrice = model.high
+
+        // Convert price to Y coordinate
+        let priceRange = mainMinMaxRange.upperBound - mainMinMaxRange.lowerBound
+        let normalizedPrice = (markPrice - mainMinMaxRange.lowerBound) / priceRange
+        let markY = mainBaseY + mainHeight - CGFloat(normalizedPrice) * mainHeight
+
+        // Make circle radius match candlestick width (same as Android logic)
+        let circleRadius: CGFloat = configManager.itemWidth * 0.4 // 80% of candlestick width for diameter
+
+        // Position both marks above the candlestick, with collision avoidance
+        let markCenterY: CGFloat
+        if type == "buy" {
+            // Buy mark directly above the candlestick
+            markCenterY = markY - circleRadius - 2
+        } else { // sell
+            if hasBothMarks {
+                // If both marks exist, position sell mark one diameter higher
+                markCenterY = markY - circleRadius - 2 - (circleRadius * 2) - 2
+            } else {
+                // If only sell mark exists, position it directly above
+                markCenterY = markY - circleRadius - 2
+            }
+        }
+
+        // Determine colors and text based on type
+        let circleColor: UIColor
+        let markText: String
+
+        if type == "buy" {
+            circleColor = configManager.increaseColor
+            markText = "B"
+        } else { // sell
+            circleColor = configManager.decreaseColor
+            markText = "S"
+        }
+
+        // Draw circle
+        let circleRect = CGRect(x: candleX - circleRadius, y: markCenterY - circleRadius,
+                              width: circleRadius * 2, height: circleRadius * 2)
+        let circlePath = UIBezierPath(ovalIn: circleRect)
+
+        context.setFillColor(circleColor.cgColor)
+        context.addPath(circlePath.cgPath)
+        context.fillPath()
+
+        // Draw border
+        context.setStrokeColor(circleColor.cgColor)
+        context.setLineWidth(1.0)
+        context.setLineDash(phase: 0, lengths: []) // Solid line
+        context.addPath(circlePath.cgPath)
+        context.strokePath()
+
+        // Draw text inside circle
+        let fontSize: CGFloat = circleRadius * 1.2 // Text size proportional to circle (same as Android)
+        let font = configManager.createFont(fontSize)
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white
+        ]
+
+        let textSize = markText.size(withAttributes: textAttributes)
+        let textRect = CGRect(x: candleX - textSize.width / 2,
+                            y: markCenterY - textSize.height / 2,
+                            width: textSize.width,
+                            height: textSize.height)
+
+        markText.draw(in: textRect, withAttributes: textAttributes)
     }
 
     func valuePointFromViewPoint(_ point: CGPoint) -> CGPoint {

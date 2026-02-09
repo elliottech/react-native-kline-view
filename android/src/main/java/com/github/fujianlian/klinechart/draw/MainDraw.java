@@ -14,6 +14,7 @@ import com.github.fujianlian.klinechart.formatter.ValueFormatter;
 import com.github.fujianlian.klinechart.utils.ViewUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -338,8 +339,34 @@ public class MainDraw implements IChartDraw<ICandle> {
         float top = margin + view.getTopPadding();
         final KLineEntity point = (KLineEntity) view.getItem(index);
 
+        // Get the basic selectedItemList
+        List<Map<String, Object>> itemList = new ArrayList<>(point.selectedItemList);
 
-        List<Map<String, Object>> itemList = point.selectedItemList;
+        // Check if there are buy/sell marks for this candlestick and add them to tooltip
+        if (view.getParent() instanceof com.github.fujianlian.klinechart.container.HTKLineContainerView) {
+            com.github.fujianlian.klinechart.container.HTKLineContainerView containerView =
+                (com.github.fujianlian.klinechart.container.HTKLineContainerView) view.getParent();
+
+            long candleTime = point.timestamp;
+
+            // Add buy mark tooltip if exists
+            java.util.Map<String, Object> buyMark = containerView.getBuyMarkForTime(candleTime);
+            if (buyMark != null && buyMark.containsKey("tooltipText")) {
+                Map<String, Object> buyTooltipItem = new HashMap<>();
+                buyTooltipItem.put("title", "");
+                buyTooltipItem.put("detail", buyMark.get("tooltipText"));
+                itemList.add(buyTooltipItem);
+            }
+
+            // Add sell mark tooltip if exists
+            java.util.Map<String, Object> sellMark = containerView.getSellMarkForTime(candleTime);
+            if (sellMark != null && sellMark.containsKey("tooltipText")) {
+                Map<String, Object> sellTooltipItem = new HashMap<>();
+                sellTooltipItem.put("title", "");
+                sellTooltipItem.put("detail", sellMark.get("tooltipText"));
+                itemList.add(sellTooltipItem);
+            }
+        }
 
         float height = padding * 2 + (textHeight + lineHeight) * itemList.size() - lineHeight;
 

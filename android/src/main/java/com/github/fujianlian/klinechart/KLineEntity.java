@@ -135,6 +135,7 @@ public class KLineEntity implements IKLine {
     public List<Map<String, Object>> selectedItemList = new ArrayList<>();
 
     public float id;
+    public long timestamp; // Store original timestamp as long to avoid precision loss
     public String Date;
     public float Open;
     public float High;

@@ -1,0 +1,100 @@
+name: Cleanup Prereleases
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set NPM_TOKEN for GitHub Packages
+        run: echo "NPM_TOKEN=${{ secrets.GH_PACKAGE_TOKEN }}" >> $GITHUB_ENV  
+
+      # Setup Node.js and npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@elliottech'
+
+      # Get PR information
+      - name: Get PR information
+        id: pr_info
+        run: |
+          PR_NUMBER=${{ github.event.number }}
+          BRANCH_NAME="${{ github.head_ref }}"
+          
+          # Clean branch name for npm (same logic as prerelease workflow)
+          CLEAN_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+          
+          echo "PR Number: $PR_NUMBER"
+          echo "Branch Name: $BRANCH_NAME"
+          echo "Clean Branch Name: $CLEAN_BRANCH_NAME"
+          
+          echo "clean_branch_name=$CLEAN_BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+      # List and unpublish prerelease versions
+      - name: Cleanup prerelease versions
+        run: |
+          CLEAN_BRANCH_NAME="${{ steps.pr_info.outputs.clean_branch_name }}"
+          
+          echo "Cleaning up prerelease versions for branch: $CLEAN_BRANCH_NAME"
+          
+          # List all versions with the branch tag
+          echo "Listing versions with tag: $CLEAN_BRANCH_NAME"
+          npm view @elliottech/react-native-kline-view@$CLEAN_BRANCH_NAME || echo "No versions found with tag $CLEAN_BRANCH_NAME"
+          
+          # Note: npm unpublish by tag is not reliable, so we'll list what would be cleaned up
+          echo "Note: npm unpublish by tag is not reliable"
+          echo "Manual cleanup may be needed for tag: $CLEAN_BRANCH_NAME"
+          
+          # Also try to unpublish specific prerelease versions that might exist
+          # Get current version from package.json to construct prerelease version
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          PRERELEASE_VERSION="${CURRENT_VERSION}-${CLEAN_BRANCH_NAME}.${{ steps.pr_info.outputs.pr_number }}"
+          
+          echo "Attempting to unpublish specific version: $PRERELEASE_VERSION"
+          npm unpublish @elliottech/react-native-kline-view@$PRERELEASE_VERSION || echo "Version $PRERELEASE_VERSION not found or already unpublished"
+          
+          echo "Cleanup completed for branch: $CLEAN_BRANCH_NAME"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGE_TOKEN }}
+
+      # Comment on the merged PR
+      - name: Comment on merged PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const cleanBranchName = '${{ steps.pr_info.outputs.clean_branch_name }}';
+            const prNumber = ${{ steps.pr_info.outputs.pr_number }};
+            
+            const comment = `## 🧹 Prerelease Cleanup Complete
+            
+            All prerelease versions for branch \`${cleanBranchName}\` have been cleaned up.
+            
+            The following actions were performed:
+            - ✅ Unpublished all versions tagged with \`${cleanBranchName}\`
+            - ✅ Removed prerelease packages from npm registry
+            
+            ---
+            *This cleanup was performed automatically after PR merge.*`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });

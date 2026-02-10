@@ -1,17 +1,26 @@
 {
-  "name": "react-native-kline-view",
+  "name": "@elliottech/react-native-kline-view",
   "version": "1.0.1",
-  "description": "",
+  "description": "React Native Kline chart component with native Android and iOS implementations",
   "main": "index.js",
+  "repository": "git@github.com:elliottech/react-native-kline-view.git",
+  "author": "elliottech",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/@elliottech"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "echo \"Ready to publish\""
   },
   "keywords": [
-    "react-native"
+    "react-native",
+    "kline",
+    "chart",
+    "candlestick"
   ],
-  "author": "",
-  "license": "",
+  "license": "MIT",
   "peerDependencies": {
+    "react": "*",
     "react-native": ">=0.66.0"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"

@@ -1,0 +1,84 @@
+name: Manual Prerelease Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Branch name to clean up (without special characters)'
+        required: true
+        type: string
+      pr_number:
+        description: 'PR number (optional, for specific version cleanup)'
+        required: false
+        type: string
+
+jobs:
+  manual-cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set NPM_TOKEN for GitHub Packages
+        run: echo "NPM_TOKEN=${{ secrets.GH_PACKAGE_TOKEN }}" >> $GITHUB_ENV  
+
+      # Setup Node.js and npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@elliottech'
+
+      # Clean branch name
+      - name: Clean branch name
+        id: clean_name
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.branch_name }}"
+          CLEAN_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+          echo "Original branch name: $BRANCH_NAME"
+          echo "Clean branch name: $CLEAN_BRANCH_NAME"
+          echo "clean_branch_name=$CLEAN_BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      # List and cleanup prerelease versions
+      - name: List and cleanup prerelease versions
+        run: |
+          CLEAN_BRANCH_NAME="${{ steps.clean_name.outputs.clean_branch_name }}"
+          PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          
+          echo "Cleaning up prerelease versions for branch: $CLEAN_BRANCH_NAME"
+          
+          # List all versions with the branch tag
+          echo "=== Listing versions with tag: $CLEAN_BRANCH_NAME ==="
+          npm view @elliottech/react-native-kline-view@$CLEAN_BRANCH_NAME || echo "No versions found with tag $CLEAN_BRANCH_NAME"
+          
+          # Unpublish all versions with this tag
+          echo "=== Unpublishing versions with tag: $CLEAN_BRANCH_NAME ==="
+          npm unpublish @elliottech/react-native-kline-view@$CLEAN_BRANCH_NAME || echo "No versions to unpublish with tag $CLEAN_BRANCH_NAME"
+          
+          # If PR number is provided, also try to unpublish specific version
+          if [ -n "$PR_NUMBER" ]; then
+            CURRENT_VERSION=$(node -p "require('./package.json').version")
+            PRERELEASE_VERSION="${CURRENT_VERSION}-${CLEAN_BRANCH_NAME}.${PR_NUMBER}"
+            
+            echo "=== Attempting to unpublish specific version: $PRERELEASE_VERSION ==="
+            npm unpublish @elliottech/react-native-kline-view@$PRERELEASE_VERSION || echo "Version $PRERELEASE_VERSION not found or already unpublished"
+          fi
+          
+          echo "=== Cleanup completed for branch: $CLEAN_BRANCH_NAME ==="
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGE_TOKEN }}
+
+      # Show cleanup summary
+      - name: Show cleanup summary
+        run: |
+          echo "## 🧹 Manual Cleanup Summary"
+          echo "**Branch:** ${{ github.event.inputs.branch_name }}"
+          echo "**Clean Branch Name:** ${{ steps.clean_name.outputs.clean_branch_name }}"
+          echo "**PR Number:** ${{ github.event.inputs.pr_number || 'Not specified' }}"
+          echo ""
+          echo "✅ Cleanup completed successfully!"

@@ -1,0 +1,207 @@
+name: PR Prerelease Publishing
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set NPM_TOKEN for GitHub Packages
+        run: echo "NPM_TOKEN=${{ secrets.GH_PACKAGE_TOKEN }}" >> $GITHUB_ENV  
+
+      # Setup Node.js and npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@elliottech'
+
+      # Add initial "In Progress" comment immediately
+      - name: Add In Progress Comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ github.event.number }};
+            
+            const inProgressComment = `## 🚧 Prerelease In Progress
+            
+            Building and publishing prerelease version...
+            
+            ---
+            *This comment will be updated when publishing is complete.*`;
+            
+            // Check if comment already exists
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              (comment.body.includes('🚧 Prerelease In Progress') || comment.body.includes('🚀 Prerelease Published'))
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: inProgressComment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: inProgressComment
+              });
+            }
+
+      - run: yarn install --frozen-lockfile
+
+      # Generate prerelease version
+      - name: Generate prerelease version
+        id: version
+        run: |
+          # Get PR number, branch name, and actor
+          PR_NUMBER=${{ github.event.number }}
+          BRANCH_NAME="${{ github.head_ref }}"
+          ACTOR="${{ github.actor }}"
+          
+          # Clean branch name for npm (remove special characters)
+          CLEAN_BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+          
+          # Clean actor name for npm (remove special characters)
+          CLEAN_ACTOR=$(echo "$ACTOR" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+          
+          # Get commit SHA (first 7 characters) for uniqueness
+          
+          COMMIT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
+
+          # Create semver-compatible version: 0.PR_NUMBER.0-ACTOR.COMMIT_SHA.BRANCH_NAME
+          # This ensures it's always less than 1.0.0 and includes all our info
+          PRERELEASE_VERSION="0.${PR_NUMBER}.0-${CLEAN_ACTOR}.${COMMIT_SHA}.${CLEAN_BRANCH_NAME}"
+          
+          echo "PR Number: $PR_NUMBER"
+          echo "Branch Name: $BRANCH_NAME"
+          echo "Actor: $ACTOR"
+          echo "Clean Branch Name: $CLEAN_BRANCH_NAME"
+          echo "Clean Actor: $CLEAN_ACTOR"
+          echo "Commit SHA: $COMMIT_SHA"
+          echo "Prerelease Version: $PRERELEASE_VERSION"
+          
+          echo "prerelease_version=$PRERELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "clean_branch_name=$CLEAN_BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "clean_actor=$CLEAN_ACTOR" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+      # Create temporary package.json with custom version
+      - name: Create temporary package.json
+        run: |
+          # Create a temporary package.json with our custom version
+          node -e "
+            const fs = require('fs');
+            const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            packageJson.version = '${{ steps.version.outputs.prerelease_version }}';
+            fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+            console.log('Created temporary package.json with version:', packageJson.version);
+          "
+
+      # Clean up previous prereleases for this PR
+      - name: Clean up previous prereleases
+        run: |
+          CLEAN_BRANCH_NAME="${{ steps.version.outputs.clean_branch_name }}"
+          
+          echo "Cleaning up previous prereleases for PR #${{ steps.version.outputs.pr_number }}"
+          
+          # List all versions with this tag to find previous ones from this PR
+          echo "Listing existing versions with tag: $CLEAN_BRANCH_NAME"
+          npm view @elliottech/react-native-kline-view@$CLEAN_BRANCH_NAME || echo "No existing versions found"
+          
+          # Note: npm unpublish by tag is not reliable
+          echo "Note: npm unpublish by tag is not reliable"
+          echo "Previous versions with tag $CLEAN_BRANCH_NAME may need manual cleanup"
+          
+          echo "Cleanup completed for PR #${{ steps.version.outputs.pr_number }}"
+        env:
+          NPM_TOKEN: ${{ secrets.GH_PACKAGE_TOKEN }}
+
+      # Publish prerelease
+      - name: Publish prerelease
+        run: |
+          npm publish --tag ${{ steps.version.outputs.clean_branch_name }}
+        env:
+          NPM_TOKEN: ${{ secrets.GH_PACKAGE_TOKEN }}
+
+      # Restore original package.json
+      - name: Restore original package.json
+        run: |
+          git checkout package.json
+          echo "Restored original package.json"
+
+      # Comment on PR with installation instructions
+      - name: Update Comment with Results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prereleaseVersion = '${{ steps.version.outputs.prerelease_version }}';
+            const cleanBranchName = '${{ steps.version.outputs.clean_branch_name }}';
+            const prNumber = ${{ steps.version.outputs.pr_number }};
+            
+            const comment = `## 🚀 Prerelease Published
+            
+            **Version:** \`${prereleaseVersion}\`
+            **Tag:** \`${cleanBranchName}\`
+            
+            ### Update package.json:
+            \`\`\`json
+            "@elliottech/react-native-kline-view": "${prereleaseVersion}"
+            \`\`\`
+            
+            ---
+            *Previous prereleases for this PR have been cleaned up. This prerelease will be automatically cleaned up when the PR is merged.*`;
+            
+            // Check if "In Progress" comment exists and update it
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              (comment.body.includes('🚧 Prerelease In Progress') || comment.body.includes('🚀 Prerelease Published'))
+            );
+            
+            if (existingComment) {
+              // Update existing comment (either "In Progress" or "Published")
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              // Fallback: create new comment if somehow no existing comment found
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: comment
+              });
+            }

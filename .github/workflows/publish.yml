@@ -1,0 +1,72 @@
+name: Publish package to GitHub Packages
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Need full history for git tags
+
+      - name: Set NPM_TOKEN for GitHub Packages
+        run: echo "NPM_TOKEN=${{ secrets.GH_PACKAGE_TOKEN }}" >> $GITHUB_ENV  
+
+      # Setup .npmrc file to publish to GitHub Packages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          registry-url: 'https://npm.pkg.github.com'
+          # Defaults to the user or organization that owns the workflow file
+          scope: '@elliottech'
+      
+      - run: yarn install --frozen-lockfile
+      
+      # Get next version based on existing tags
+      - name: Calculate next version
+        id: version
+        run: |
+          # Get the latest tag - fail if none exist
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            echo "❌ No Git tags found! Please create an initial tag first."
+            echo "Example: git tag v1.0.0 && git push origin v1.0.0"
+            exit 1
+          fi
+          
+          echo "Latest tag: $LATEST_TAG"
+          VERSION=${LATEST_TAG#v}  # Remove 'v' prefix if present
+          echo "Current version: $VERSION"
+          
+          # Split version into parts
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Increment patch version
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+          
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+      # Update package.json with new version
+      - name: Update package.json
+        run: |
+          yarn version --new-version ${{ steps.version.outputs.version }} --no-git-tag-version
+          echo "Updated package.json to version: $(node -p "require('./package.json').version")"
+      # Create and push git tag
+      - name: Create and push tag
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGE_TOKEN }}

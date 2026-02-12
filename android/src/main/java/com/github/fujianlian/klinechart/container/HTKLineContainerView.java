@@ -79,7 +79,6 @@ public class HTKLineContainerView extends RelativeLayout {
         klineView.setMTextSize(klineView.configManager.candleTextFontSize);
         klineView.setMTextColor(klineView.configManager.candleTextColor);
         klineView.reloadColor();
-        Boolean isEnd = klineView.getScrollOffset() >= klineView.getMaxScrollX();
         int previousScrollX = klineView.getScrollOffset();
         klineView.notifyChanged();
 
@@ -87,8 +86,9 @@ public class HTKLineContainerView extends RelativeLayout {
             // 调整滚动位置以补偿新增的数据
             int newScrollX = previousScrollX + klineView.configManager.scrollPositionAdjustment;
             klineView.setScrollX(newScrollX);
-        } else if (isEnd || klineView.configManager.shouldScrollToEnd) {
-            klineView.setScrollX(klineView.getMaxScrollX());
+        } else if (klineView.configManager.shouldScrollToEnd) {
+            int scrollToEnd = klineView.getMaxScrollX() - klineView.getWidth();
+            klineView.setScrollX(scrollToEnd);
         }
 
 

@@ -131,7 +131,6 @@ class HTKLineView: UIScrollView {
             childDraw = wrDraw
         }
 
-        let isEnd = contentOffset.x + 1 + bounds.size.width >= contentSize.width
         let previousContentOffset = contentOffset.x
         reloadContentSize()
 
@@ -139,8 +138,8 @@ class HTKLineView: UIScrollView {
             // Adjust scroll position to compensate for newly added data
             let newContentOffset = previousContentOffset + configManager.scrollPositionAdjustment
             reloadContentOffset(newContentOffset, false)
-        } else if configManager.shouldScrollToEnd || isEnd {
-            let toEndContentOffset = contentSize.width - bounds.size.width
+        } else if configManager.shouldScrollToEnd {
+            let toEndContentOffset = contentSize.width - 2 * bounds.size.width
             let distance = abs(contentOffset.x - toEndContentOffset)
             let animated = distance <= configManager.itemWidth
             reloadContentOffset(toEndContentOffset, animated)
@@ -183,16 +182,19 @@ class HTKLineView: UIScrollView {
         let contentWidth =
             configManager.itemWidth * CGFloat(configManager.modelArray.count)
             + configManager.paddingRight
+            + bounds.size.width
         contentSize = CGSize.init(width: contentWidth, height: frame.size.height)
     }
 
     func reloadContentOffset(_ contentOffsetX: CGFloat, _ animated: Bool = false) {
-        let offsetX = max(0, min(contentOffsetX, contentSize.width - bounds.size.width))
+        let allCandlesWidth = configManager.itemWidth * CGFloat(configManager.modelArray.count)
+        let maxAllowedOffset = allCandlesWidth - configManager.minVisibleCandles * configManager.itemWidth
+        let offsetX = max(0, min(contentOffsetX, maxAllowedOffset))
         setContentOffset(CGPoint.init(x: offsetX, y: 0), animated: animated)
     }
 
     func smoothScrollToEnd() {
-        let endOffsetX = contentSize.width - bounds.size.width
+        let endOffsetX = contentSize.width - 2 * bounds.size.width
         reloadContentOffset(endOffsetX, true)
     }
 
@@ -1034,7 +1036,16 @@ class HTKLineView: UIScrollView {
 extension HTKLineView: UIScrollViewDelegate {
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let allCandlesWidth = configManager.itemWidth * CGFloat(configManager.modelArray.count)
+        let maxAllowedOffset = allCandlesWidth - configManager.minVisibleCandles * configManager.itemWidth
+
         let contentOffsetX = scrollView.contentOffset.x
+
+        if contentOffsetX > maxAllowedOffset {
+            scrollView.contentOffset.x = maxAllowedOffset
+            return
+        }
+
         var visibleStartIndex = Int(floor(contentOffsetX / configManager.itemWidth))
         var visibleEndIndex = Int(
             ceil((contentOffsetX + scrollView.bounds.size.width) / configManager.itemWidth))

@@ -17,6 +17,12 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
         GestureDetector.OnGestureListener,
         ScaleGestureDetector.OnScaleGestureListener {
     protected int mScrollX = 0;
+    
+    /**
+     * Get minimum visible candles
+     * @return minimum number of candles that should be visible
+     */
+    protected abstract float getMinVisibleCandles();
     protected GestureDetectorCompat mDetector;
     protected ScaleGestureDetector mScaleDetector;
 
@@ -266,13 +272,29 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
     public abstract int getMaxScrollX();
 
     /**
+     * Get the point width
+     *
+     * @return
+     */
+    public abstract float getPointWidth();
+
+    /**
+     * Get the total data length (itemCount * pointWidth)
+     *
+     * @return
+     */
+    public abstract float getDataLength();
+
+    /**
      * Set ScrollX
      *
      * @param scrollX
      */
     public void setScrollX(int scrollX) {
-        this.mScrollX = scrollX;
-        scrollTo(scrollX, 0);
+        int maxAllowedScroll = (int)(getDataLength() - getMinVisibleCandles() * getPointWidth());
+        int normalizedMaxAllowedScroll = Math.max(0, maxAllowedScroll);
+        this.mScrollX = Math.max(0, Math.min(scrollX, normalizedMaxAllowedScroll));
+        scrollTo(this.mScrollX, 0);
     }
 
     /**
@@ -285,13 +307,17 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
     }
 
     protected void checkAndFixScrollX() {
-        int contentSizeWidth = (getMaxScrollX());
+        float dataLength = getDataLength();
+        float minVisibleCandles = getMinVisibleCandles();
+        float pointWidth = getPointWidth();
+        int maxAllowedScroll = (int)(dataLength - minVisibleCandles * pointWidth);
+        int normalizedMaxAllowedScroll = Math.max(0, maxAllowedScroll);
 
         if (mScrollX < getMinScrollX()) {
             mScrollX = getMinScrollX();
             mScroller.forceFinished(true);
-        } else if (mScrollX > contentSizeWidth) {
-            mScrollX = contentSizeWidth;
+        } else if (mScrollX > normalizedMaxAllowedScroll) {
+            mScrollX = normalizedMaxAllowedScroll;
             mScroller.forceFinished(true);
             if (!mHasTriggeredRightSide) {
                 mHasTriggeredRightSide = true;

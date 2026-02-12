@@ -3,6 +3,7 @@
   "version": "1.0.1",
   "description": "React Native Kline chart component with native Android and iOS implementations",
   "main": "index.js",
+  "types": "index.d.ts",
   "repository": "git@github.com:elliottech/react-native-kline-view.git",
   "author": "elliottech",
   "publishConfig": {

@@ -66,6 +66,168 @@ const RNKLineView = forwardRef((props, ref) => {
       } else {
         console.warn('No nodeHandle found for RNKLineView');
       }
+    },
+    addOrderLine: (orderLine) => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.addOrderLine,
+            [orderLine]
+          );
+        } else {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'addOrderLine',
+            [orderLine]
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+      }
+    },
+    removeOrderLine: (orderLineId) => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.removeOrderLine,
+            [orderLineId]
+          );
+        } else {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'removeOrderLine',
+            [orderLineId]
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+      }
+    },
+    updateOrderLine: (orderLine) => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.updateOrderLine,
+            [orderLine]
+          );
+        } else {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'updateOrderLine',
+            [orderLine]
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+      }
+    },
+    getOrderLines: () => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          return UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.getOrderLines,
+            []
+          );
+        } else {
+          return UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'getOrderLines',
+            []
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+        return [];
+      }
+    },
+    addBuySellMark: (buySellMark) => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.addBuySellMark,
+            [buySellMark]
+          );
+        } else {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'addBuySellMark',
+            [buySellMark]
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+      }
+    },
+    removeBuySellMark: (buySellMarkId) => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.removeBuySellMark,
+            [buySellMarkId]
+          );
+        } else {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'removeBuySellMark',
+            [buySellMarkId]
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+      }
+    },
+    updateBuySellMark: (buySellMark) => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.updateBuySellMark,
+            [buySellMark]
+          );
+        } else {
+          UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'updateBuySellMark',
+            [buySellMark]
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+      }
+    },
+    getBuySellMarks: () => {
+      const nodeHandle = findNodeHandle(nativeRef.current);
+      if (nodeHandle) {
+        if (Platform.OS === 'ios') {
+          return UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            UIManager.getViewManagerConfig('RNKLineView').Commands.getBuySellMarks,
+            []
+          );
+        } else {
+          return UIManager.dispatchViewManagerCommand(
+            nodeHandle,
+            'getBuySellMarks',
+            []
+          );
+        }
+      } else {
+        console.warn('No nodeHandle found for RNKLineView');
+        return [];
+      }
     }
   }));
 

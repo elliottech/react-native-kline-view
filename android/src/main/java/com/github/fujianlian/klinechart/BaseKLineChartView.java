@@ -13,6 +13,7 @@ import com.github.fujianlian.klinechart.base.IChartDraw;
 import com.github.fujianlian.klinechart.base.IDateTimeFormatter;
 import com.github.fujianlian.klinechart.base.IValueFormatter;
 import com.github.fujianlian.klinechart.container.HTDrawContext;
+import com.github.fujianlian.klinechart.container.HTKLineContainerView;
 import com.github.fujianlian.klinechart.container.HTPoint;
 import com.github.fujianlian.klinechart.draw.MainDraw;
 import com.github.fujianlian.klinechart.draw.PrimaryStatus;
@@ -320,6 +321,7 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
                 drawK(canvas);
                 drawText(canvas);
                 drawMaxAndMin(canvas);
+                drawOrderLines(canvas);
                 drawValue(canvas, isLongPress ? mSelectedIndex : mStopIndex);
                 drawClosePriceLine(canvas);
                 drawSelector(canvas);
@@ -486,7 +488,6 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
             mClosePriceLabelFrame.set(rect);
             android.util.Log.d("BaseKLineChartView", "Set closePriceLabelFrame (center): " + rect);
 
-            canvas.drawLine(0, y, mWidth, y, mClosePriceLinePaint);
             float radius = (paddingY * 2 + height) / 2;
             mClosePricePointPaint.setColor(configManager.closePriceCenterBackgroundColor);
             mClosePricePointPaint.setStyle(Paint.Style.FILL);
@@ -512,7 +513,6 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
             mClosePriceLabelFrame.set(rightRect);
             android.util.Log.d("BaseKLineChartView", "Set closePriceLabelFrame (right): " + rightRect);
 
-            canvas.drawLine(x, y, mWidth, y, mClosePriceLinePaint);
             canvas.drawRect(rightRect, mClosePricePointPaint);
             canvas.drawText(text, mWidth - width, fixTextY1(y), mClosePriceRightTextPaint);
 
@@ -557,6 +557,9 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
             if (mChildDraw != null) {
                 mChildDraw.drawTranslated(lastPoint, currentPoint, lastX, currentPointX, canvas, this, i);
             }
+
+            // Draw buy/sell marks for this candlestick if they exist (O(1) lookup)
+            drawBuySellMarksForCandlestick((KLineEntity) currentPoint, i, currentPointX, canvas);
         }
 
         //还原 平移缩放
@@ -837,6 +840,322 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
                 mChildDraw.drawText(canvas, this, position, x, y);
             }
         }
+    }
+
+    private void drawOrderLines(Canvas canvas) {
+        // Get parent container view to access order lines
+        if (getParent() instanceof HTKLineContainerView) {
+            HTKLineContainerView containerView = (HTKLineContainerView) getParent();
+            java.util.Map<String, java.util.Map<String, Object>> orderLines = containerView.getAllOrderLines();
+
+            for (java.util.Map.Entry<String, java.util.Map<String, Object>> entry : orderLines.entrySet()) {
+                java.util.Map<String, Object> orderLineData = entry.getValue();
+
+                if (orderLineData.containsKey("price") && orderLineData.containsKey("type")) {
+                    double price = 0;
+                    Object priceObj = orderLineData.get("price");
+                    if (priceObj instanceof Number) {
+                        price = ((Number) priceObj).doubleValue();
+                    }
+
+                    String type = (String) orderLineData.get("type");
+
+                    // Convert price to Y coordinate
+                    float y = yFromValue((float) price);
+
+                    // Only draw if the price is within the visible main chart area
+                    if (y >= mMainRect.top && y <= mMainRect.bottom) {
+                        // Create a paint for drawing order lines
+                        Paint orderLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                        orderLinePaint.setStyle(Paint.Style.STROKE);
+                        orderLinePaint.setStrokeWidth(2.0f);
+
+                        // Use color property if available, otherwise default to orange
+                        int lineColor = Color.parseColor("#FF9500"); // Default orange color
+                        if (orderLineData.containsKey("color")) {
+                            String colorString = (String) orderLineData.get("color");
+                            if (colorString != null) {
+                                try {
+                                    // Handle RGBA format (convert to ARGB for Android)
+                                    if (colorString.length() == 9 && colorString.startsWith("#")) {
+                                        // Convert #RRGGBBAA to #AARRGGBB
+                                        String rgba = colorString.substring(1);
+                                        String argb = "#" + rgba.substring(6) + rgba.substring(0, 6);
+                                        lineColor = Color.parseColor(argb);
+                                    } else {
+                                        lineColor = Color.parseColor(colorString);
+                                    }
+                                } catch (IllegalArgumentException e) {
+                                    // If parsing fails, use default orange color
+                                    lineColor = Color.parseColor("#FF9500");
+                                }
+                            }
+                        }
+                        orderLinePaint.setColor(lineColor);
+
+                        // Create dashed line effect
+                        float[] dashIntervals = {15.0f, 10.0f}; // dash length, gap length
+                        orderLinePaint.setPathEffect(new DashPathEffect(dashIntervals, 0));
+
+                        // Calculate line start position (after label if it exists)
+                        float lineStartX = 0;
+
+                        // Draw label if available and calculate where line should start
+                        if (orderLineData.containsKey("label")) {
+                            String label = (String) orderLineData.get("label");
+                            if (label != null && !label.isEmpty()) {
+                                // Get font size or use default
+                                float fontSize = 12.0f;
+                                if (orderLineData.containsKey("labelFontSize")) {
+                                    Object fontSizeObj = orderLineData.get("labelFontSize");
+                                    if (fontSizeObj instanceof Number) {
+                                        fontSize = ((Number) fontSizeObj).floatValue();
+                                    }
+                                }
+
+                                // Get label color (defaults to line color)
+                                int labelColor = lineColor;
+                                if (orderLineData.containsKey("labelColor")) {
+                                    String labelColorString = (String) orderLineData.get("labelColor");
+                                    if (labelColorString != null) {
+                                        try {
+                                            if (labelColorString.length() == 9 && labelColorString.startsWith("#")) {
+                                                String rgba = labelColorString.substring(1);
+                                                String argb = "#" + rgba.substring(6) + rgba.substring(0, 6);
+                                                labelColor = Color.parseColor(argb);
+                                            } else {
+                                                labelColor = Color.parseColor(labelColorString);
+                                            }
+                                        } catch (IllegalArgumentException e) {
+                                            labelColor = lineColor;
+                                        }
+                                    }
+                                }
+
+                                // Create paint for label text
+                                Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                                labelPaint.setColor(labelColor);
+                                labelPaint.setTextSize(fontSize * getResources().getDisplayMetrics().scaledDensity);
+                                labelPaint.setTypeface(configManager.font);
+
+                                // Calculate label text bounds
+                                Rect labelBounds = new Rect();
+                                labelPaint.getTextBounds(label, 0, label.length(), labelBounds);
+
+                                // Calculate description text bounds if available
+                                String description = null;
+                                Rect descriptionBounds = new Rect();
+                                Paint descriptionPaint = null;
+                                int descriptionColor = labelColor;
+                                float spacing = 0;
+
+                                if (orderLineData.containsKey("labelDescription")) {
+                                    description = (String) orderLineData.get("labelDescription");
+                                    if (description != null && !description.isEmpty()) {
+                                        spacing = 4 * getResources().getDisplayMetrics().density;
+
+                                        // Get description color (defaults to label color)
+                                        if (orderLineData.containsKey("labelDescriptionColor")) {
+                                            String descriptionColorString = (String) orderLineData.get("labelDescriptionColor");
+                                            if (descriptionColorString != null) {
+                                                try {
+                                                    if (descriptionColorString.length() == 9 && descriptionColorString.startsWith("#")) {
+                                                        String rgba = descriptionColorString.substring(1);
+                                                        String argb = "#" + rgba.substring(6) + rgba.substring(0, 6);
+                                                        descriptionColor = Color.parseColor(argb);
+                                                    } else {
+                                                        descriptionColor = Color.parseColor(descriptionColorString);
+                                                    }
+                                                } catch (IllegalArgumentException e) {
+                                                    descriptionColor = labelColor;
+                                                }
+                                            }
+                                        }
+
+                                        descriptionPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                                        descriptionPaint.setColor(descriptionColor);
+                                        descriptionPaint.setTextSize(fontSize * getResources().getDisplayMetrics().scaledDensity);
+                                        descriptionPaint.setTypeface(configManager.font);
+                                        descriptionPaint.getTextBounds(description, 0, description.length(), descriptionBounds);
+                                    }
+                                }
+
+                                // Calculate total width (label + space + description)
+                                float totalTextWidth = labelBounds.width() + spacing + (description != null ? descriptionBounds.width() : 0);
+                                float textHeight = Math.max(labelBounds.height(), description != null ? descriptionBounds.height() : 0);
+
+                                // Pill container dimensions (match close price pill)
+                                float density = getResources().getDisplayMetrics().density;
+                                float horizontalPadding = 20;
+                                float verticalPadding = 14;
+                                float outerPadding = 8 * density;
+
+                                float pillWidth = totalTextWidth + horizontalPadding * 2;
+                                float pillHeight = textHeight + verticalPadding * 2;
+
+                                float labelX = outerPadding;
+                                float labelY = y - pillHeight / 2;
+
+                                // Only draw if there's enough space (left third of screen)
+                                if (labelX + pillWidth + outerPadding < getWidth() / 3) {
+                                    // Create pill background paint
+                                    Paint pillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                                    // Get background color or use default (transparent)
+                                    int backgroundColor = Color.TRANSPARENT;
+                                    if (orderLineData.containsKey("labelBackgroundColor")) {
+                                        String backgroundColorString = (String) orderLineData.get("labelBackgroundColor");
+                                        if (backgroundColorString != null) {
+                                            try {
+                                                // Handle RGBA format (convert to ARGB for Android)
+                                                if (backgroundColorString.length() == 9 && backgroundColorString.startsWith("#")) {
+                                                    // Convert #RRGGBBAA to #AARRGGBB
+                                                    String rgba = backgroundColorString.substring(1);
+                                                    String argb = "#" + rgba.substring(6) + rgba.substring(0, 6);
+                                                    backgroundColor = Color.parseColor(argb);
+                                                } else {
+                                                    backgroundColor = Color.parseColor(backgroundColorString);
+                                                }
+                                            } catch (IllegalArgumentException e) {
+                                                backgroundColor = Color.TRANSPARENT;
+                                            }
+                                        }
+                                    }
+
+                                    // Draw pill background
+                                    RectF pillRect = new RectF(labelX, labelY, labelX + pillWidth, labelY + pillHeight);
+                                    // Use same radius calculation as close price pill
+                                    float radius = (verticalPadding * 2 + textHeight) / 2;
+                                    pillPaint.setColor(backgroundColor);
+                                    pillPaint.setStyle(Paint.Style.FILL);
+                                    canvas.drawRoundRect(pillRect, radius, radius, pillPaint);
+
+                                    // Draw pill border with same color as text
+                                    pillPaint.setColor(lineColor);
+                                    pillPaint.setStyle(Paint.Style.STROKE);
+                                    pillPaint.setStrokeWidth(1 * density);
+                                    canvas.drawRoundRect(pillRect, radius, radius, pillPaint);
+
+                                    // Draw label and description separately with their respective colors
+                                    float textX = labelX + horizontalPadding;
+                                    float textY = y + textHeight / 2;
+
+                                    // Draw label text
+                                    canvas.drawText(label, textX, textY, labelPaint);
+
+                                    // Draw description text if available
+                                    if (description != null && descriptionPaint != null) {
+                                        float descriptionX = textX + labelBounds.width() + spacing;
+                                        canvas.drawText(description, descriptionX, textY, descriptionPaint);
+                                    }
+
+                                    // Set line to start after pill with additional padding
+                                    lineStartX = labelX + pillWidth + outerPadding;
+                                }
+                            }
+                        }
+
+                        // Draw horizontal line starting after the label (or from 0 if no label)
+                        // Stop before the Y-axis scale area (paddingRight)
+                        float lineEndX = getWidth() - configManager.paddingRight;
+                        canvas.drawLine(lineStartX, y, lineEndX, y, orderLinePaint);
+                    }
+                }
+            }
+        }
+    }
+
+    private void drawBuySellMarksForCandlestick(KLineEntity candlestick, int index, float currentPointX, Canvas canvas) {
+        // Get parent container view to access buy/sell marks
+        if (getParent() instanceof HTKLineContainerView) {
+            HTKLineContainerView containerView = (HTKLineContainerView) getParent();
+
+            // Use the preserved timestamp to avoid precision loss
+            long candleTime = candlestick.timestamp;
+
+            // Check for both marks to handle collision detection
+            java.util.Map<String, Object> buyMark = containerView.getBuyMarkForTime(candleTime);
+            java.util.Map<String, Object> sellMark = containerView.getSellMarkForTime(candleTime);
+
+            // Check if both marks exist to handle collision avoidance
+            boolean hasBothMarks = buyMark != null && sellMark != null;
+
+            // Draw buy mark
+            if (buyMark != null) {
+                drawBuySellMark(buyMark, candlestick, index, currentPointX, "buy", canvas, hasBothMarks);
+            }
+
+            // Draw sell mark
+            if (sellMark != null) {
+                drawBuySellMark(sellMark, candlestick, index, currentPointX, "sell", canvas, hasBothMarks);
+            }
+        }
+    }
+
+    private void drawBuySellMark(java.util.Map<String, Object> markData, KLineEntity candlestick, int index, float currentPointX, String type, Canvas canvas, boolean hasBothMarks) {
+        // Use the same X coordinate as candlesticks (same as mMainDraw.drawTranslated)
+        float candleX = currentPointX;
+
+        // Use the same Y coordinate calculation as MainDraw.drawCandle
+        float candleHigh = candlestick.getHighPrice();
+        float highY = yFromValue(candleHigh); // Same method used by MainDraw.drawCandle
+
+        // Circle properties - diameter should match candlestick width
+        float circleRadius = mPointWidth * 0.4f; // Use 80% of candlestick width for diameter
+
+        // Position both marks above the candlestick, with collision avoidance
+        float markCenterY;
+        if ("buy".equals(type)) {
+            // Buy mark directly above the candlestick
+            markCenterY = highY - circleRadius - dp2px(2);
+        } else { // sell
+            if (hasBothMarks) {
+                // If both marks exist, position sell mark one diameter higher
+                markCenterY = highY - circleRadius - dp2px(2) - (circleRadius * 2) - dp2px(2);
+            } else {
+                // If only sell mark exists, position it directly above
+                markCenterY = highY - circleRadius - dp2px(2);
+            }
+        }
+
+        android.util.Log.d("BuySellDebug", "Drawing " + type + " mark - visible at (" + candleX + ", " + markCenterY + ") radius: " + circleRadius);
+
+        // Determine colors based on type, using same colors as candlesticks
+        int circleColor;
+        if ("buy".equals(type)) {
+            circleColor = configManager.increaseColor; // Use same color as increasing candlesticks
+        } else { // sell
+            circleColor = configManager.decreaseColor; // Use same color as decreasing candlesticks
+        }
+
+        // Create paint for circle
+        Paint circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        circlePaint.setColor(circleColor);
+        circlePaint.setStyle(Paint.Style.FILL);
+
+        // Draw circle
+        canvas.drawCircle(candleX, markCenterY, circleRadius, circlePaint);
+
+        // Draw border
+        Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        borderPaint.setColor(circleColor);
+        borderPaint.setStyle(Paint.Style.STROKE);
+        borderPaint.setStrokeWidth(2.0f);
+        canvas.drawCircle(candleX, markCenterY, circleRadius, borderPaint);
+
+        // Draw text inside circle
+        String markText = "buy".equals(type) ? "B" : "S";
+        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textPaint.setColor(android.graphics.Color.WHITE);
+        textPaint.setTextSize(circleRadius * 1.2f); // Text size proportional to circle
+        textPaint.setTypeface(configManager.font);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+
+        // Calculate text position (center of circle)
+        Paint.FontMetrics fontMetrics = textPaint.getFontMetrics();
+        float textY = markCenterY - (fontMetrics.ascent + fontMetrics.descent) / 2;
+
+        canvas.drawText(markText, candleX, textY, textPaint);
     }
 
     public int dp2px(float dp) {

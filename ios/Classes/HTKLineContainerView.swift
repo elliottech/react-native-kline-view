@@ -8,9 +8,33 @@
 import UIKit
 
 class HTKLineContainerView: UIView {
-    
+
     var configManager = HTKLineConfigManager()
-    
+
+    // Order line management
+    private var orderLines: [String: [String: Any]] = [:]
+
+    func getAllOrderLines() -> [String: [String: Any]] {
+        return orderLines
+    }
+
+    // Buy/sell mark management - indexed by timestamp for O(1) lookup
+    private var buyMarks: [Int64: [String: Any]] = [:]
+    private var sellMarks: [Int64: [String: Any]] = [:]
+    private var buySellMarks: [String: [String: Any]] = [:] // Keep for compatibility
+
+    func getAllBuySellMarks() -> [String: [String: Any]] {
+        return buySellMarks
+    }
+
+    func getBuyMarkForTime(_ time: Int64) -> [String: Any]? {
+        return buyMarks[time]
+    }
+
+    func getSellMarkForTime(_ time: Int64) -> [String: Any]? {
+        return sellMarks[time]
+    }
+
     @objc var onDrawItemDidTouch: RCTBubblingEventBlock?
 
     @objc var onScrollLeft: RCTBubblingEventBlock?
@@ -18,7 +42,7 @@ class HTKLineContainerView: UIView {
     @objc var onChartTouch: RCTBubblingEventBlock?
 
     @objc var onDrawItemComplete: RCTBubblingEventBlock?
-    
+
     @objc var onDrawPointComplete: RCTBubblingEventBlock?
     
     @objc var optionList: String? {
@@ -419,6 +443,164 @@ class HTKLineContainerView: UIView {
         } catch {
             print("HTKLineContainerView: Error adding candlesticks at start: \(error)")
         }
+    }
+
+    @objc func addOrderLine(_ orderLine: NSDictionary) {
+        print("HTKLineContainerView: addOrderLine called with data: \(orderLine)")
+
+        guard let orderLineDict = orderLine as? [String: Any],
+              let id = orderLineDict["id"] as? String else {
+            print("HTKLineContainerView: addOrderLine - Invalid order line data")
+            return
+        }
+
+        // Store the order line
+        orderLines[id] = orderLineDict
+        print("HTKLineContainerView: Added order line with id: \(id)")
+
+        // Trigger redraw to show the order line
+        DispatchQueue.main.async { [weak self] in
+            self?.klineView.setNeedsDisplay()
+        }
+    }
+
+    @objc func removeOrderLine(_ orderLineId: String) {
+        print("HTKLineContainerView: removeOrderLine called with id: \(orderLineId)")
+
+        // Remove the order line
+        orderLines.removeValue(forKey: orderLineId)
+        print("HTKLineContainerView: Removed order line with id: \(orderLineId)")
+
+        // Trigger redraw to remove the order line
+        DispatchQueue.main.async { [weak self] in
+            self?.klineView.setNeedsDisplay()
+        }
+    }
+
+    @objc func updateOrderLine(_ orderLine: NSDictionary) {
+        print("HTKLineContainerView: updateOrderLine called with data: \(orderLine)")
+
+        guard let orderLineDict = orderLine as? [String: Any],
+              let id = orderLineDict["id"] as? String else {
+            print("HTKLineContainerView: updateOrderLine - Invalid order line data")
+            return
+        }
+
+        // Update the order line
+        orderLines[id] = orderLineDict
+        print("HTKLineContainerView: Updated order line with id: \(id)")
+
+        // Trigger redraw to update the order line
+        DispatchQueue.main.async { [weak self] in
+            self?.klineView.setNeedsDisplay()
+        }
+    }
+
+    @objc func getOrderLines() -> NSArray {
+        print("HTKLineContainerView: getOrderLines called")
+
+        // Return all order lines as an array
+        let orderLinesArray = Array(orderLines.values)
+        print("HTKLineContainerView: Returning \(orderLinesArray.count) order lines")
+        return NSArray(array: orderLinesArray)
+    }
+
+    @objc func addBuySellMark(_ buySellMark: NSDictionary) {
+
+        guard let buySellMarkDict = buySellMark as? [String: Any],
+              let id = buySellMarkDict["id"] as? String,
+              let time = buySellMarkDict["time"] as? Int64,
+              let type = buySellMarkDict["type"] as? String else {
+            return
+        }
+
+        // Store in compatibility map
+        buySellMarks[id] = buySellMarkDict
+
+        // Store in efficient lookup maps by timestamp
+        if type == "buy" {
+            buyMarks[time] = buySellMarkDict
+        } else if type == "sell" {
+            sellMarks[time] = buySellMarkDict
+        }
+
+        print("HTKLineContainerView: Added \(type) mark with id: \(id) at time: \(time)")
+
+        // Trigger redraw to show the buy/sell mark
+        DispatchQueue.main.async { [weak self] in
+            self?.klineView.setNeedsDisplay()
+        }
+    }
+
+    @objc func removeBuySellMark(_ buySellMarkId: String) {
+
+        // Find and remove from efficient lookup maps
+        if let markData = buySellMarks[buySellMarkId],
+           let time = markData["time"] as? Int64,
+           let type = markData["type"] as? String {
+
+            if type == "buy" {
+                buyMarks.removeValue(forKey: time)
+            } else if type == "sell" {
+                sellMarks.removeValue(forKey: time)
+            }
+        }
+
+        // Remove from compatibility map
+        buySellMarks.removeValue(forKey: buySellMarkId)
+        print("HTKLineContainerView: Removed buy/sell mark with id: \(buySellMarkId)")
+
+        // Trigger redraw to remove the buy/sell mark
+        DispatchQueue.main.async { [weak self] in
+            self?.klineView.setNeedsDisplay()
+        }
+    }
+
+    @objc func updateBuySellMark(_ buySellMark: NSDictionary) {
+
+        guard let buySellMarkDict = buySellMark as? [String: Any],
+              let id = buySellMarkDict["id"] as? String,
+              let time = buySellMarkDict["time"] as? Int64,
+              let type = buySellMarkDict["type"] as? String else {
+            return
+        }
+
+        // Remove old entry from efficient lookup maps if it exists
+        if let oldMarkData = buySellMarks[id],
+           let oldTime = oldMarkData["time"] as? Int64,
+           let oldType = oldMarkData["type"] as? String {
+
+            if oldType == "buy" {
+                buyMarks.removeValue(forKey: oldTime)
+            } else if oldType == "sell" {
+                sellMarks.removeValue(forKey: oldTime)
+            }
+        }
+
+        // Update compatibility map
+        buySellMarks[id] = buySellMarkDict
+
+        // Add to efficient lookup maps
+        if type == "buy" {
+            buyMarks[time] = buySellMarkDict
+        } else if type == "sell" {
+            sellMarks[time] = buySellMarkDict
+        }
+
+        print("HTKLineContainerView: Updated \(type) mark with id: \(id) at time: \(time)")
+
+        // Trigger redraw to update the buy/sell mark
+        DispatchQueue.main.async { [weak self] in
+            self?.klineView.setNeedsDisplay()
+        }
+    }
+
+    @objc func getBuySellMarks() -> NSArray {
+
+        // Return all buy/sell marks as an array
+        let buySellMarksArray = Array(buySellMarks.values)
+        print("HTKLineContainerView: Returning \(buySellMarksArray.count) buy/sell marks")
+        return NSArray(array: buySellMarksArray)
     }
 
 }

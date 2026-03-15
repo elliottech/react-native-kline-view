@@ -1,0 +1,24 @@
+version: 2
+updates:
+- package-ecosystem: "npm"
+  directory: "/"
+  schedule:
+    interval: "weekly"
+  groups:
+    patch-updates:
+      applies-to: version-updates
+      patterns: ['*']
+      update-types:
+        - "patch"
+  open-pull-requests-limit: 1
+  target-branch: "main"
+  pull-request-branch-name:
+    separator: "-"
+  commit-message:
+    prefix: "[dependabot] Patch update: "
+  ignore:
+    - dependency-name: "react"
+    - dependency-name: "react-native"
+    # For all packages, ignore all minor and major updates
+    - dependency-name: "*"
+      update-types: ["version-update:semver-major", "version-update:semver-minor"]

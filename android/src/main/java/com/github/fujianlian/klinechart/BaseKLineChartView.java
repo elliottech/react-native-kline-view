@@ -1428,8 +1428,12 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
         return 0;
     }
 
+    public int getExtraScrollX() {
+        return (int) (mOverScrollRange / mScaleX);
+    }
+
     public int getMaxScrollX() {
-        int contentWidth = (int) Math.max((mDataLen - (mWidth - configManager.paddingRight) / mScaleX + mWidth / mScaleX), 0);
+        int contentWidth = (int) Math.max((mDataLen - (mWidth - configManager.paddingRight) / mScaleX + getExtraScrollX()), 0);
         return contentWidth;
     }
 
@@ -1999,7 +2003,7 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
     }
 
     public void smoothScrollToEnd() {
-        int screenWidthInLogicalUnits = (int)(mWidth / mScaleX);
+        int screenWidthInLogicalUnits = getExtraScrollX();
         int endScrollX = (int)(mDataLen + configManager.paddingRight - screenWidthInLogicalUnits);
 
         setScrollXWithoutMinCandlesLimit(Math.max(0, endScrollX));

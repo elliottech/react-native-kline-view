@@ -134,11 +134,21 @@ class HTKLineView: UIScrollView {
         let previousContentOffset = contentOffset.x
         reloadContentSize()
 
+
+        let rightScreenOffset = contentOffset.x + bounds.size.width + 1
+        let lastCandlestickOffset = contentSize.width - bounds.size.width - configManager.itemWidth / 2
+        // how many candlesticks +- should it consider to auto scroll to end when new data is added
+        // if the user is over-scrolled, then the candlesticks have space to appear on screen without scrolling
+        // and at some point it will enter this range and become auto-scrolling to end
+        let candlesticksCountOffset = 1.5 * configManager.itemWidth
+        // Extra spacing at the end is bounds.size.width
+        let isEnd = lastCandlestickOffset - candlesticksCountOffset <= rightScreenOffset && rightScreenOffset <= lastCandlestickOffset + candlesticksCountOffset
+
         if configManager.shouldAdjustScrollPosition {
             // Adjust scroll position to compensate for newly added data
             let newContentOffset = previousContentOffset + configManager.scrollPositionAdjustment
             reloadContentOffset(newContentOffset, false)
-        } else if configManager.shouldScrollToEnd {
+        } else if configManager.shouldScrollToEnd || isEnd {
             let toEndContentOffset = contentSize.width - 2 * bounds.size.width
             let distance = abs(contentOffset.x - toEndContentOffset)
             let animated = distance <= configManager.itemWidth
@@ -188,7 +198,7 @@ class HTKLineView: UIScrollView {
 
     func reloadContentOffset(_ contentOffsetX: CGFloat, _ animated: Bool = false) {
         let allCandlesWidth = configManager.itemWidth * CGFloat(configManager.modelArray.count)
-        let maxAllowedOffset = allCandlesWidth - configManager.minVisibleCandles * configManager.itemWidth
+        let maxAllowedOffset = max(0, allCandlesWidth - configManager.minVisibleCandles * configManager.itemWidth)
         let offsetX = max(0, min(contentOffsetX, maxAllowedOffset))
         setContentOffset(CGPoint.init(x: offsetX, y: 0), animated: animated)
     }
@@ -1037,7 +1047,7 @@ extension HTKLineView: UIScrollViewDelegate {
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         let allCandlesWidth = configManager.itemWidth * CGFloat(configManager.modelArray.count)
-        let maxAllowedOffset = allCandlesWidth - configManager.minVisibleCandles * configManager.itemWidth
+        let maxAllowedOffset = max(0, allCandlesWidth - configManager.minVisibleCandles * configManager.itemWidth)
 
         let contentOffsetX = scrollView.contentOffset.x
 

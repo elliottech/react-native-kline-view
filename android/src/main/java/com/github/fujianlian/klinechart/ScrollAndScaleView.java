@@ -291,10 +291,8 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
      * @param scrollX
      */
     public void setScrollX(int scrollX) {
-        int maxAllowedScroll = (int)(getDataLength() - getMinVisibleCandles() * getPointWidth());
-        int normalizedMaxAllowedScroll = Math.max(0, maxAllowedScroll);
-        this.mScrollX = Math.max(0, Math.min(scrollX, normalizedMaxAllowedScroll));
-        scrollTo(this.mScrollX, 0);
+        this.mScrollX = scrollX;
+        scrollTo(scrollX, 0);
     }
 
     /**
@@ -307,17 +305,12 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
     }
 
     protected void checkAndFixScrollX() {
-        float dataLength = getDataLength();
-        float minVisibleCandles = getMinVisibleCandles();
-        float pointWidth = getPointWidth();
-        int maxAllowedScroll = (int)(dataLength - minVisibleCandles * pointWidth);
-        int normalizedMaxAllowedScroll = Math.max(0, maxAllowedScroll);
-
+        int contentSizeWidth = (getMaxScrollX());
         if (mScrollX < getMinScrollX()) {
             mScrollX = getMinScrollX();
             mScroller.forceFinished(true);
-        } else if (mScrollX > normalizedMaxAllowedScroll) {
-            mScrollX = normalizedMaxAllowedScroll;
+        } else if (mScrollX > contentSizeWidth) {
+            mScrollX = contentSizeWidth;
             mScroller.forceFinished(true);
             if (!mHasTriggeredRightSide) {
                 mHasTriggeredRightSide = true;

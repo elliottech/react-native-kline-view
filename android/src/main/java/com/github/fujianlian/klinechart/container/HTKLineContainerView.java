@@ -87,7 +87,7 @@ public class HTKLineContainerView extends RelativeLayout {
             int newScrollX = previousScrollX + klineView.configManager.scrollPositionAdjustment;
             klineView.setScrollX(newScrollX);
         } else if (klineView.configManager.shouldScrollToEnd) {
-            int scrollToEnd = klineView.getMaxScrollX() - klineView.getWidth();
+            int scrollToEnd = klineView.getMaxScrollX() - klineView.getExtraScrollX();
             klineView.setScrollX(scrollToEnd);
         }
 
@@ -410,7 +410,7 @@ public class HTKLineContainerView extends RelativeLayout {
 
         try {
             // Check if user is currently at the end of the chart
-            boolean wasAtEnd = klineView.getScrollOffset() >= klineView.getMaxScrollX() - 10;
+            boolean wasAtEnd = klineView.getScrollOffset() >= klineView.getMaxScrollX() - 10 - klineView.getExtraScrollX();
 
             // Get existing model for preserving indicator lists structure
             KLineEntity templateEntity = null;

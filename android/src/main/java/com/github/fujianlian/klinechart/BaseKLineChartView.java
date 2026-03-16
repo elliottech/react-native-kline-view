@@ -1429,7 +1429,7 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
     }
 
     public int getExtraScrollX() {
-        return (int) (mOverScrollRange / mScaleX);
+        return (int) (mWidth / mScaleX);
     }
 
     public int getMaxScrollX() {

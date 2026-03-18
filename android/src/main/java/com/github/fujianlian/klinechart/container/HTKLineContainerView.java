@@ -409,8 +409,9 @@ public class HTKLineContainerView extends RelativeLayout {
         }
 
         try {
+            float endPosition = klineView.getMaxScrollX() - klineView.getExtraScrollX();
             // Check if user is currently at the end of the chart
-            boolean wasAtEnd = klineView.getScrollOffset() >= klineView.getMaxScrollX() - 10 - klineView.getExtraScrollX();
+            boolean wasAtEnd = endPosition - 10 <= klineView.getScrollOffset() && klineView.getScrollOffset() <= endPosition + 10;
 
             // Get existing model for preserving indicator lists structure
             KLineEntity templateEntity = null;
@@ -469,7 +470,7 @@ public class HTKLineContainerView extends RelativeLayout {
                                 @Override
                                 public void run() {
                                     android.util.Log.d("HTKLineContainerView", "Scrolling to end after adding new data");
-                                    klineView.setScrollX(klineView.getMaxScrollX());
+                                    klineView.setScrollX(klineView.getMaxScrollX() - klineView.getExtraScrollX());
                                 }
                             }, 100); // Additional delay for scroll
                         }

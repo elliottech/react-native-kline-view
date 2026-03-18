@@ -1429,7 +1429,10 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
     }
 
     public int getExtraScrollX() {
-        return (int) (mWidth / mScaleX - getMinVisibleCandles() * mScaleX);
+        float minVisibleCandles = getMinVisibleCandles();
+        int extraScrollX = (int) (mWidth / mScaleX - Math.min(minVisibleCandles * mPointWidth / mScaleX, mWidth / mScaleX * 0.8f));
+        // android.util.Log.d("BaseKLineChartView", "getExtraScrollX: " + extraScrollX + ", mScaleX: " + mScaleX + ", minVisibleCandles: " + minVisibleCandles + ", mWidth: " + mWidth);
+        return extraScrollX;
     }
 
     public int getMaxScrollX() {

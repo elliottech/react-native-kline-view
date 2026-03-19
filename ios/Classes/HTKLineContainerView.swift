@@ -351,8 +351,14 @@ class HTKLineContainerView: UIView {
                 print("HTKLineContainerView: Using indicator data from React Native - maList.count=\(newModel.maList.count), maVolumeList.count=\(newModel.maVolumeList.count)")
             }
 
-            // Get the scroll position before adding data
-            let wasAtEnd = klineView.contentOffset.x >= (klineView.contentSize.width - klineView.frame.width - 10)
+            let rightScreenOffset = klineView.contentOffset.x + bounds.size.width + 1 - configManager.paddingRight
+            let lastCandlestickOffset = configManager.itemWidth * CGFloat(configManager.modelArray.count) - configManager.itemWidth / 2
+            // how many candlesticks +- should it consider to auto scroll to end when new data is added
+            // if the user is over-scrolled, then the candlesticks have space to appear on screen without scrolling
+            // and at some point it will enter this range and become auto-scrolling to end
+            let candlesticksCountOffset = 3 * configManager.itemWidth
+            // Extra spacing at the end is bounds.size.width
+            let wasAtEnd = lastCandlestickOffset - candlesticksCountOffset <= rightScreenOffset && rightScreenOffset <= lastCandlestickOffset + candlesticksCountOffset
 
             // Add new models to the end of the array
             configManager.modelArray.append(contentsOf: newModels)
@@ -375,7 +381,7 @@ class HTKLineContainerView: UIView {
                 if wasAtEnd {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         print("HTKLineContainerView: Scrolling to end after adding new data")
-                        let maxContentOffsetX = max(0, self.klineView.contentSize.width - self.klineView.bounds.size.width)
+                        let maxContentOffsetX = max(0, self.klineView.contentSize.width - 2 * self.klineView.bounds.size.width)
                         self.klineView.reloadContentOffset(maxContentOffsetX, true)
                     }
                 }

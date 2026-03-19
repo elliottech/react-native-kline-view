@@ -135,14 +135,20 @@ class HTKLineView: UIScrollView {
         reloadContentSize()
 
 
-        let rightScreenOffset = contentOffset.x + bounds.size.width + 1
-        let lastCandlestickOffset = contentSize.width - configManager.paddingRight - configManager.itemWidth / 2
+        let rightScreenOffset = contentOffset.x + bounds.size.width + 1 - configManager.paddingRight
+        let lastCandlestickOffset = configManager.itemWidth * CGFloat(configManager.modelArray.count) - configManager.itemWidth / 2
         // how many candlesticks +- should it consider to auto scroll to end when new data is added
         // if the user is over-scrolled, then the candlesticks have space to appear on screen without scrolling
         // and at some point it will enter this range and become auto-scrolling to end
         let candlesticksCountOffset = 3 * configManager.itemWidth
         // Extra spacing at the end is bounds.size.width
         let isEnd = lastCandlestickOffset - candlesticksCountOffset <= rightScreenOffset && rightScreenOffset <= lastCandlestickOffset + candlesticksCountOffset
+
+        // Additional context for debugging over-scroll
+        let contentWidth = contentSize.width
+        let maxScrollOffset = max(0, contentWidth - bounds.size.width)
+        let isOverScrolled = contentOffset.x >= maxScrollOffset
+        let distanceFromEnd = maxScrollOffset - contentOffset.x
 
         if configManager.shouldAdjustScrollPosition {
             // Adjust scroll position to compensate for newly added data

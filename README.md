@@ -14,7 +14,7 @@ To start the project for:
     - in `example` dir: `yarn install --force`
     - in `example/ios` dir: `pod install`
     - in `example` dir: `yarn ios`
-    - sometimes it throws code developer signature, dont know when or how to fix, complete here if you find out more
+    - sometimes it throws code developer signature. if it shows the application started successfully means the simulator works fine
 
 
 

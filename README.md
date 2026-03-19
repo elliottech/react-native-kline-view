@@ -1,5 +1,25 @@
 # React Native KLine View
 
+
+## Development
+
+To start the project for:
+
+  - Android:
+    - in `example` dir
+    - `yarn install --force`
+    - `yarn android`
+
+  - ios:
+    - in `example` dir: `yarn install --force`
+    - in `example/ios` dir: `pod install`
+    - in `example` dir: `yarn ios`
+    - sometimes it throws code developer signature, dont know when or how to fix, complete here if you find out more
+
+
+
+## Intro
+
 <div align="center">
   <img src="./example/logo.png" alt="React Native KLine View" width="120" height="120" style="border-radius: 60px;" />
 </div>
@@ -74,6 +94,7 @@ yarn add react-native-kline-view@https://github.com/hellohublot/react-native-kli
 ```
 
 ### iOS Setup
+
 ```bash
 cd ios && pod install
 ```

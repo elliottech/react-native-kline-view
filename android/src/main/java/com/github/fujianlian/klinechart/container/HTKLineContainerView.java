@@ -79,7 +79,6 @@ public class HTKLineContainerView extends RelativeLayout {
         klineView.setMTextSize(klineView.configManager.candleTextFontSize);
         klineView.setMTextColor(klineView.configManager.candleTextColor);
         klineView.reloadColor();
-        Boolean isEnd = klineView.getScrollOffset() >= klineView.getMaxScrollX();
         int previousScrollX = klineView.getScrollOffset();
         klineView.notifyChanged();
 
@@ -87,8 +86,9 @@ public class HTKLineContainerView extends RelativeLayout {
             // 调整滚动位置以补偿新增的数据
             int newScrollX = previousScrollX + klineView.configManager.scrollPositionAdjustment;
             klineView.setScrollX(newScrollX);
-        } else if (isEnd || klineView.configManager.shouldScrollToEnd) {
-            klineView.setScrollX(klineView.getMaxScrollX());
+        } else if (klineView.configManager.shouldScrollToEnd) {
+            int scrollToEnd = klineView.getMaxScrollX() - klineView.getExtraScrollX();
+            klineView.setScrollX(scrollToEnd);
         }
 
 
@@ -409,8 +409,9 @@ public class HTKLineContainerView extends RelativeLayout {
         }
 
         try {
+            float endPosition = klineView.getMaxScrollX() - klineView.getExtraScrollX();
             // Check if user is currently at the end of the chart
-            boolean wasAtEnd = klineView.getScrollOffset() >= klineView.getMaxScrollX() - 10;
+            boolean wasAtEnd = endPosition - 10 <= klineView.getScrollOffset() && klineView.getScrollOffset() <= endPosition + 10;
 
             // Get existing model for preserving indicator lists structure
             KLineEntity templateEntity = null;
@@ -469,7 +470,7 @@ public class HTKLineContainerView extends RelativeLayout {
                                 @Override
                                 public void run() {
                                     android.util.Log.d("HTKLineContainerView", "Scrolling to end after adding new data");
-                                    klineView.setScrollX(klineView.getMaxScrollX());
+                                    klineView.setScrollX(klineView.getMaxScrollX() - klineView.getExtraScrollX());
                                 }
                             }, 100); // Additional delay for scroll
                         }

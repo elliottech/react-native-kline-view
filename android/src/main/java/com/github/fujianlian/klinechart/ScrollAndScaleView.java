@@ -17,6 +17,12 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
         GestureDetector.OnGestureListener,
         ScaleGestureDetector.OnScaleGestureListener {
     protected int mScrollX = 0;
+    
+    /**
+     * Get minimum visible candles
+     * @return minimum number of candles that should be visible
+     */
+    protected abstract float getMinVisibleCandles();
     protected GestureDetectorCompat mDetector;
     protected ScaleGestureDetector mScaleDetector;
 
@@ -266,6 +272,20 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
     public abstract int getMaxScrollX();
 
     /**
+     * Get the point width
+     *
+     * @return
+     */
+    public abstract float getPointWidth();
+
+    /**
+     * Get the total data length (itemCount * pointWidth)
+     *
+     * @return
+     */
+    public abstract float getDataLength();
+
+    /**
      * Set ScrollX
      *
      * @param scrollX
@@ -286,7 +306,6 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
 
     protected void checkAndFixScrollX() {
         int contentSizeWidth = (getMaxScrollX());
-
         if (mScrollX < getMinScrollX()) {
             mScrollX = getMinScrollX();
             mScroller.forceFinished(true);

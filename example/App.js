@@ -42,6 +42,7 @@ import {
 
 
 const App = () => {
+	const MIN_VISIBLE_CANDLES = 10
 	const [isDarkTheme, setIsDarkTheme] = useState(false)
 	const [selectedTimeType, setSelectedTimeType] = useState(2) // Corresponds to 1 minute
 	const [selectedMainIndicator, setSelectedMainIndicator] = useState(1) // Corresponds to MA (1=MA, 2=BOLL)
@@ -167,7 +168,8 @@ const App = () => {
 			lastDataLength,
 			currentScrollPosition,
 			showVolumeChart,
-			candleCornerRadius
+			candleCornerRadius,
+			minVisibleCandles: MIN_VISIBLE_CANDLES
 		}, shouldScrollToEnd, kLineViewRef.current ? true : false)
 		setOptionListValue(newOptionList)
 	}, [klineData, selectedMainIndicator, selectedSubIndicator, showVolumeChart, isDarkTheme, selectedTimeType, selectedDrawTool, showIndicatorSelector, showTimeSelector, showDrawToolSelector, drawShouldContinue, optionList, lastDataLength, currentScrollPosition, candleCornerRadius])
@@ -216,7 +218,8 @@ const App = () => {
 			lastDataLength,
 			currentScrollPosition,
 			showVolumeChart,
-			candleCornerRadius
+			candleCornerRadius,
+			minVisibleCandles: MIN_VISIBLE_CANDLES
 		}, false)
 
 		// Calculate scroll distance adjustment needed (based on item width)

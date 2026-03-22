@@ -1428,9 +1428,26 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
         return 0;
     }
 
+    public int getExtraScrollX() {
+        float minVisibleCandles = getMinVisibleCandles();
+        int extraScrollX = (int) (mWidth / mScaleX - Math.min(minVisibleCandles * mPointWidth / mScaleX, mWidth / mScaleX * 0.8f));
+        // android.util.Log.d("BaseKLineChartView", "getExtraScrollX: " + extraScrollX + ", mScaleX: " + mScaleX + ", minVisibleCandles: " + minVisibleCandles + ", mWidth: " + mWidth);
+        return extraScrollX;
+    }
+
     public int getMaxScrollX() {
-        int contentWidth = (int) Math.max((mDataLen - (mWidth - configManager.paddingRight) / mScaleX), 0);
+        int contentWidth = (int) Math.max((mDataLen - (mWidth - configManager.paddingRight) / mScaleX + getExtraScrollX()), 0);
         return contentWidth;
+    }
+
+    @Override
+    protected float getMinVisibleCandles() {
+        return configManager.minVisibleCandles;
+    }
+
+    @Override
+    public float getDataLength() {
+        return mDataLen;
     }
 
     /**
@@ -1989,19 +2006,20 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
     }
 
     public void smoothScrollToEnd() {
-        int endScrollX = getMaxScrollX();
-        int currentScrollX = getScrollOffset();
-        int distance = endScrollX - currentScrollX;
+        int screenWidthInLogicalUnits = getExtraScrollX();
+        int endScrollX = (int)(mDataLen + configManager.paddingRight - screenWidthInLogicalUnits);
 
-        // android.util.Log.d("BaseKLineChartView", "smoothScrollToEnd DEBUG:");
-        // android.util.Log.d("BaseKLineChartView", "  mDataLen=" + mDataLen + ", mItemCount=" + mItemCount + ", mPointWidth=" + mPointWidth);
-        // android.util.Log.d("BaseKLineChartView", "  mWidth=" + mWidth + ", mScaleX=" + mScaleX + ", paddingRight=" + configManager.paddingRight);
-        // android.util.Log.d("BaseKLineChartView", "  current=" + currentScrollX + ", end=" + endScrollX + ", distance=" + distance);
+        setScrollXWithoutMinCandlesLimit(Math.max(0, endScrollX));
+    }
 
-        // Always scroll to end position, regardless of current position
-        // This ensures we go to the rightmost position to show the latest data
-        setScrollX(endScrollX);
-        // android.util.Log.d("BaseKLineChartView", "Set scroll position to end: " + endScrollX);
+    /**
+     * Set scroll position without applying minVisibleCandles limit
+     */
+    private void setScrollXWithoutMinCandlesLimit(int scrollX) {
+        int oldX = this.mScrollX;
+        this.mScrollX = Math.max(0, Math.min(scrollX, (int)mDataLen));
+        onScrollChanged(this.mScrollX, 0, oldX, 0);
+        invalidate();
     }
 
     // Public getter methods for accessing protected fields

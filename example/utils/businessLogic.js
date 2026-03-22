@@ -282,7 +282,8 @@ export const packOptionList = (modelArray, appState, shouldScrollToEnd = true, u
 		selectedDrawTool,
 		showVolumeChart,
 		candleCornerRadius,
-		drawShouldContinue
+		drawShouldContinue,
+		minVisibleCandles
 	} = appState
 
 	const theme = ThemeManager.getCurrentTheme(isDarkTheme)
@@ -355,6 +356,7 @@ export const packOptionList = (modelArray, appState, shouldScrollToEnd = true, u
 		itemWidth: 8 * pixelRatio,
 		candleWidth: 6 * pixelRatio,
 		candleCornerRadius: candleCornerRadius * pixelRatio,
+		minVisibleCandles: minVisibleCandles || 5,
 		minuteVolumeCandleColor: processColor(showVolumeChart ? COLOR(0.0941176, 0.509804, 0.831373, 0.501961) : 'transparent'),
 		minuteVolumeCandleWidth: showVolumeChart ? 2 * pixelRatio : 0,
 		macdCandleWidth: 1 * pixelRatio,

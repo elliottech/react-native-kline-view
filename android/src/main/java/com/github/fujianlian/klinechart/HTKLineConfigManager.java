@@ -103,6 +103,8 @@ public class HTKLineConfigManager {
 
     public float candleCornerRadius = 0;
 
+    public float minVisibleCandles = 5;
+
     public int minuteVolumeCandleColor = Color.RED;
 
     public float minuteVolumeCandleWidth = 1.5f;
@@ -453,6 +455,11 @@ public class HTKLineConfigManager {
         Number candleCornerRadiusValue = (Number)configList.get("candleCornerRadius");
         if (candleCornerRadiusValue != null) {
             this.candleCornerRadius = candleCornerRadiusValue.floatValue();
+        }
+
+        Number minVisibleCandlesValue = (Number)configList.get("minVisibleCandles");
+        if (minVisibleCandlesValue != null) {
+            this.minVisibleCandles = minVisibleCandlesValue.floatValue();
         }
 
         this.fontFamily = (configList.get("fontFamily")).toString();

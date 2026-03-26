@@ -30,6 +30,14 @@ export const generateMockData = () => {
       close: parseFloat(close.toFixed(2)),
       vol: parseFloat(volume.toFixed(2))  // Native code expects 'vol' not 'volume'
     })
+
+    // TO TEST EMPTY CANDLESTICKS UNCOMMENT THIS
+    // if (i % 5 === 0) {
+    //   data[data.length - 1].vol = 0 // Simulate occasional volume spikes
+    //   data[data.length - 1].close = data[data.length - 1].open // Simulate occasional price stability
+    //   data[data.length - 1].high = data[data.length - 1].open // Simulate occasional price stability
+    //   data[data.length - 1].low = data[data.length - 1].open // Simulate occasional price stability
+    // }
     
     lastClose = close
   }

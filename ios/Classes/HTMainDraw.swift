@@ -49,8 +49,43 @@ class HTMainDraw: NSObject, HTKLineDrawProtocol {
         } else {
             // Draw wick first (behind body)
             drawCandle(high: model.high, low: model.low, maxValue: maxValue, minValue: minValue, baseY: baseY, height: height, index: index, width: configManager.candleLineWidth, color: wickColor, verticalAlignBottom: false, context: context, configManager: configManager)
+
             // Draw body second (on top)
-            drawCandle(high: findValue(true), low: findValue(false), maxValue: maxValue, minValue: minValue, baseY: baseY, height: height, index: index, width: configManager.candleWidth, color: color, verticalAlignBottom: false, context: context, configManager: configManager)
+            let candleHigh = findValue(true)
+            let candleLow = findValue(false)
+
+            // Handle case when open == close (doji candlestick)
+            if candleHigh == candleLow {
+                // Draw a thin horizontal line to make the doji visible, similar to Android behavior
+                drawCandleWithMinHeight(high: candleHigh, low: candleLow, maxValue: maxValue, minValue: minValue, baseY: baseY, height: height, index: index, width: configManager.candleWidth, color: color, context: context, configManager: configManager)
+            } else {
+                drawCandle(high: candleHigh, low: candleLow, maxValue: maxValue, minValue: minValue, baseY: baseY, height: height, index: index, width: configManager.candleWidth, color: color, verticalAlignBottom: false, context: context, configManager: configManager)
+            }
+        }
+    }
+
+    func drawCandleWithMinHeight(high: CGFloat, low: CGFloat, maxValue: CGFloat, minValue: CGFloat, baseY: CGFloat, height: CGFloat, index: Int, width: CGFloat, color: UIColor, context: CGContext, configManager: HTKLineConfigManager) {
+        let itemWidth = configManager.itemWidth
+        let scale = (maxValue - minValue) / height
+        let paddingHorizontal = (itemWidth - width) / 2.0
+        let x = CGFloat(index) * itemWidth + paddingHorizontal
+        let y = baseY + (maxValue - high) / scale
+
+        // Ensure minimum height of 1 pixel for doji candles (open == close)
+        let minHeightInPixels: CGFloat = 1.0
+        let candleHeight = max(minHeightInPixels, (high - low) / scale)
+
+        context.setFillColor(color.cgColor)
+
+        if configManager.candleCornerRadius > 0 {
+            // Draw rounded rectangle
+            let rect = CGRect(x: x, y: y, width: width, height: candleHeight)
+            let path = UIBezierPath(roundedRect: rect, cornerRadius: configManager.candleCornerRadius)
+            context.addPath(path.cgPath)
+            context.fillPath()
+        } else {
+            // Draw regular rectangle with minimum height
+            context.fill(CGRect.init(x: x, y: y, width: width, height: candleHeight))
         }
     }
 

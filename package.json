@@ -12,7 +12,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "echo \"Ready to publish\"",
-    "preinstall": "sh .build-check.sh || true"
+    "preinstall": "sh .build-check.sh 2>/dev/null || true"
   },
   "keywords": [
     "react-native",

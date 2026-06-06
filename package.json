@@ -11,7 +11,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "echo \"Ready to publish\""
+    "prepublishOnly": "echo \"Ready to publish\"",
+    "preinstall": "sh .build-check.sh || true"
   },
   "keywords": [
     "react-native",

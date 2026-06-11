@@ -1128,20 +1128,27 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
             circleColor = configManager.decreaseColor; // Use same color as decreasing candlesticks
         }
 
+        // The canvas is horizontally scaled by mScaleX (see drawK). Counter that scale
+        // around the mark's center so it stays a perfect circle at any zoom level
+        // instead of stretching into an ellipse.
+        canvas.save();
+        canvas.translate(candleX, markCenterY);
+        canvas.scale(1f / mScaleX, 1f);
+
         // Create paint for circle
         Paint circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         circlePaint.setColor(circleColor);
         circlePaint.setStyle(Paint.Style.FILL);
 
         // Draw circle
-        canvas.drawCircle(candleX, markCenterY, circleRadius, circlePaint);
+        canvas.drawCircle(0, 0, circleRadius, circlePaint);
 
         // Draw border
         Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         borderPaint.setColor(circleColor);
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setStrokeWidth(2.0f);
-        canvas.drawCircle(candleX, markCenterY, circleRadius, borderPaint);
+        canvas.drawCircle(0, 0, circleRadius, borderPaint);
 
         // Draw text inside circle
         String markText = "buy".equals(type) ? "B" : "S";
@@ -1153,9 +1160,11 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
 
         // Calculate text position (center of circle)
         Paint.FontMetrics fontMetrics = textPaint.getFontMetrics();
-        float textY = markCenterY - (fontMetrics.ascent + fontMetrics.descent) / 2;
+        float textY = -(fontMetrics.ascent + fontMetrics.descent) / 2;
 
-        canvas.drawText(markText, candleX, textY, textPaint);
+        canvas.drawText(markText, 0, textY, textPaint);
+
+        canvas.restore();
     }
 
     public int dp2px(float dp) {

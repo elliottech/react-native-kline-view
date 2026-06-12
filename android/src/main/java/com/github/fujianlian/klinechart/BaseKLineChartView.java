@@ -1107,7 +1107,7 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
         // constant regardless of zoom.
         float candleWidthAtMaxZoomOut = mPointWidth * mScaleXMin;
         float minCircleRadius = candleWidthAtMaxZoomOut * configManager.buySellMarkMinWidthMultiplier / 2f;
-        float circleRadius = Math.max(mPointWidth * 0.4f, minCircleRadius);
+        float circleRadius = Math.max(mPointWidth * 0.5f, minCircleRadius);
 
         // Position both marks above the candlestick, with collision avoidance
         float markCenterY;

@@ -357,6 +357,8 @@ export const packOptionList = (modelArray, appState, shouldScrollToEnd = true, u
 		candleWidth: 6 * pixelRatio,
 		candleCornerRadius: candleCornerRadius * pixelRatio,
 		minVisibleCandles: minVisibleCandles || 5,
+		buySellMarkMinWidthMultiplier: 3, // Min mark diameter = N * candle width when fully zoomed out
+
 		minuteVolumeCandleColor: processColor(showVolumeChart ? COLOR(0.0941176, 0.509804, 0.831373, 0.501961) : 'transparent'),
 		minuteVolumeCandleWidth: showVolumeChart ? 2 * pixelRatio : 0,
 		macdCandleWidth: 1 * pixelRatio,

@@ -105,6 +105,10 @@ public class HTKLineConfigManager {
 
     public float minVisibleCandles = 5;
 
+    // Minimum buy/sell mark diameter expressed as a multiple of the candle width when
+    // fully zoomed out. The mark never shrinks below this floor regardless of zoom.
+    public float buySellMarkMinWidthMultiplier = 3;
+
     public int minuteVolumeCandleColor = Color.RED;
 
     public float minuteVolumeCandleWidth = 1.5f;
@@ -460,6 +464,11 @@ public class HTKLineConfigManager {
         Number minVisibleCandlesValue = (Number)configList.get("minVisibleCandles");
         if (minVisibleCandlesValue != null) {
             this.minVisibleCandles = minVisibleCandlesValue.floatValue();
+        }
+
+        Number buySellMarkMinWidthMultiplierValue = (Number)configList.get("buySellMarkMinWidthMultiplier");
+        if (buySellMarkMinWidthMultiplierValue != null) {
+            this.buySellMarkMinWidthMultiplier = buySellMarkMinWidthMultiplierValue.floatValue();
         }
 
         this.fontFamily = (configList.get("fontFamily")).toString();

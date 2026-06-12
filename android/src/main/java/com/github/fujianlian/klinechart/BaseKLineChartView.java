@@ -1100,8 +1100,13 @@ public abstract class BaseKLineChartView extends ScrollAndScaleView implements D
         float candleHigh = candlestick.getHighPrice();
         float highY = yFromValue(candleHigh); // Same method used by MainDraw.drawCandle
 
-        // Circle properties - diameter should match candlestick width
-        float circleRadius = mPointWidth * 0.4f; // Use 80% of candlestick width for diameter
+        // Circle properties - diameter should match candlestick width, but never smaller
+        // than a dynamic floor of 3 * the candle width when fully zoomed out. The on-screen
+        // candle width is mPointWidth * mScaleX, so at the most zoomed-out scale (mScaleXMin)
+        // it is mPointWidth * mScaleXMin; the floor stays constant regardless of zoom.
+        float candleWidthAtMaxZoomOut = mPointWidth * mScaleXMin;
+        float minCircleRadius = candleWidthAtMaxZoomOut * 3f / 2f; // diameter = 3 * candle width
+        float circleRadius = Math.max(mPointWidth * 0.4f, minCircleRadius);
 
         // Position both marks above the candlestick, with collision avoidance
         float markCenterY;

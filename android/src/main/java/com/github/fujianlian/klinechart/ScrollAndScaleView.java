@@ -34,7 +34,7 @@ public abstract class ScrollAndScaleView extends RelativeLayout implements
 
     protected float mScaleX = 1;
 
-    protected float mScaleXMax = 2f;
+    protected float mScaleXMax = 2.5f;
 
     protected float mScaleXMin = 0.5f;
 

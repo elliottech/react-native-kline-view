@@ -976,8 +976,15 @@ class HTKLineView: UIScrollView {
         let normalizedPrice = (markPrice - mainMinMaxRange.lowerBound) / priceRange
         let markY = mainBaseY + mainHeight - CGFloat(normalizedPrice) * mainHeight
 
-        // Make circle radius match candlestick width (same as Android logic)
-        let circleRadius: CGFloat = configManager.itemWidth * 0.4 // 80% of candlestick width for diameter
+        // Make circle radius match candlestick width (same as Android logic), but never
+        // smaller than a dynamic floor of buySellMarkMinWidthMultiplier * the candle width
+        // when fully zoomed out. `_itemWidth` is the unscaled candle width and `minScale`
+        // (0.3, see pinchSelector) is the most zoomed-out scale, so the floor stays constant
+        // regardless of zoom.
+        let minScale: CGFloat = 0.3
+        let candleWidthAtMaxZoomOut = configManager._itemWidth * minScale
+        let minCircleRadius = candleWidthAtMaxZoomOut * configManager.buySellMarkMinWidthMultiplier / 2
+        let circleRadius: CGFloat = max(configManager.itemWidth * 0.4, minCircleRadius)
 
         // Position both marks above the candlestick, with collision avoidance
         let markCenterY: CGFloat

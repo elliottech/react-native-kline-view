@@ -136,6 +136,10 @@ class HTKLineConfigManager: NSObject {
 
     var minVisibleCandles: CGFloat = 5
 
+    // Minimum buy/sell mark diameter expressed as a multiple of the candle width when
+    // fully zoomed out. The mark never shrinks below this floor regardless of zoom.
+    var buySellMarkMinWidthMultiplier: CGFloat = 3
+
     var minuteVolumeCandleWidth: CGFloat = 0
 
     var _minuteVolumeCandleWidth: CGFloat = 0
@@ -451,6 +455,7 @@ class HTKLineConfigManager: NSObject {
         _macdCandleWidth = configList["macdCandleWidth"] as? CGFloat ?? 0
         candleCornerRadius = configList["candleCornerRadius"] as? CGFloat ?? 0
         minVisibleCandles = configList["minVisibleCandles"] as? CGFloat ?? 5
+        buySellMarkMinWidthMultiplier = configList["buySellMarkMinWidthMultiplier"] as? CGFloat ?? 3
         reloadScrollViewScale(1)
         paddingTop = configList["paddingTop"] as? CGFloat ?? 0
         paddingRight = configList["paddingRight"] as? CGFloat ?? 0

@@ -35,6 +35,9 @@
     "react-test-renderer": "19.1.0",
     "typescript": "5.0.4"
   },
+  "resolutions": {
+    "shell-quote": "^1.8.4"
+  },
   "engines": {
     "node": ">=18"
   },

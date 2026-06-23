@@ -26,6 +26,10 @@ if (mutatesDeps && !process.env.SKIP_PKG_GUARD) {
   const result = spawnSync(`npx`, [`--yes`, `@elliottech/pkg-guard@latest`], {
     stdio: `inherit`,
     shell: process.platform === `win32`,
+    // Yarn 4 doesn't set npm_config_argv (which pkg-guard reads to detect
+    // `yarn add <pkg>`). Synthesize it from our argv so explicitly-added
+    // packages are checked, matching Yarn 1's behavior.
+    env: { ...process.env, npm_config_argv: process.env.npm_config_argv || JSON.stringify({ original: args }) },
   });
   if (result.error) {
     // pkg-guard couldn't be launched (e.g. npx missing) — warn, don't block.

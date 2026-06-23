@@ -1,0 +1,15 @@
+{
+  "ageCheck": {
+    "enabled": false,
+    "minAgeDays": 7,
+    "packageMinAgeDays": {}
+  },
+  "malwareCheck": {
+    "enabled": true
+  },
+  "vulnCheck": {
+    "enabled": true,
+    "failOn": "critical"
+  },
+  "ignorePackages": ["@elliottech/*", "zklighter-perps", "zklighter-perps-exp"]
+}

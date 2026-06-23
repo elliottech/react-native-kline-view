@@ -26,7 +26,10 @@ jobs:
           # Defaults to the user or organization that owns the workflow file
           scope: '@elliottech'
       
-      - run: yarn install --frozen-lockfile
+      - name: Enable Corepack
+        run: corepack enable
+
+      - run: yarn install --immutable
       
       # Get next version based on existing tags
       - name: Calculate next version
@@ -58,7 +61,7 @@ jobs:
       # Update package.json with new version
       - name: Update package.json
         run: |
-          yarn version --new-version ${{ steps.version.outputs.version }} --no-git-tag-version
+          yarn version ${{ steps.version.outputs.version }}
           echo "Updated package.json to version: $(node -p "require('./package.json').version")"
       # Create and push git tag
       - name: Create and push tag

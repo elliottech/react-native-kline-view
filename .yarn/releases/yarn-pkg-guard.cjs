@@ -32,8 +32,10 @@ if (mutatesDeps && !process.env.SKIP_PKG_GUARD) {
     env: { ...process.env, npm_config_argv: process.env.npm_config_argv || JSON.stringify({ original: args }) },
   });
   if (result.error) {
-    // pkg-guard couldn't be launched (e.g. npx missing) — warn, don't block.
-    console.warn(`[pkg-guard] skipped: ${result.error.message}`);
+    // pkg-guard couldn't even be launched (e.g. npx missing). Fail closed —
+    // don't install unchecked. Use SKIP_PKG_GUARD=1 to bypass deliberately.
+    console.error(`[pkg-guard] failed to run: ${result.error.message} — blocking install (set SKIP_PKG_GUARD=1 to bypass)`);
+    process.exit(1);
   } else if (result.status !== 0) {
     // Malware/vuln found (or a block) — abort BEFORE Yarn installs anything.
     process.exit(result.status);

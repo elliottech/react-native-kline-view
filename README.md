@@ -3,6 +3,25 @@
 
 ## Development
 
+### Native command dispatch
+
+On Android, imperative chart commands use `codegenNativeCommands` with the
+current native host ref. Keep this path ref-based: converting the ref with
+`findNodeHandle` and calling `UIManager.dispatchViewManagerCommand` sends Fabric
+through `findShadowNodeByTag_DEPRECATED`. React Native 0.85.3's default lookup can
+race native tree teardown (PRO-4970). Ref-based dispatch avoids that lookup for
+chart commands without changing global React Native feature flags.
+
+iOS retains its existing numeric command mapping. Both paths check the current
+ref at call time and ignore commands after detachment. The native command names,
+argument order and payloads are unchanged.
+
+Run `yarn test` (Node 22+) for command routing, payload, detachment and independent
+chart checks. These tests mock the native bridge; they do **not** prove the
+intermittent Android SIGSEGV is resolved. Validate a mobile build containing this
+package with repeated interval changes (including 3D → weekly), market and engine
+switches, reconnects, background/foreground and idle runs, collecting native logs.
+
 To start the project for:
 
   - Android:

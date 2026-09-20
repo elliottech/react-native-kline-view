@@ -1,5 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import { requireNativeComponent, UIManager, findNodeHandle, Platform } from 'react-native';
+import { requireNativeComponent } from 'react-native';
 import codegenNativeCommands from 'react-native/Libraries/Utilities/codegenNativeCommands';
 
 const NativeRNKLineView = requireNativeComponent('RNKLineView');
@@ -26,20 +26,11 @@ const RNKLineView = forwardRef((props, ref) => {
     const view = nativeRef.current;
     if (!view) return detachedResult;
 
-    if (Platform.OS === 'android') {
-      // Dispatch through the host ref. Numeric tags force Fabric through
-      // findShadowNodeByTag_DEPRECATED, whose RN 0.85 lookup can race teardown.
-      return Commands[name](view, ...args);
-    }
-
-    // Preserve iOS's exported numeric command mapping.
-    const nodeHandle = findNodeHandle(view);
-    if (!nodeHandle) return detachedResult;
-    return UIManager.dispatchViewManagerCommand(
-      nodeHandle,
-      UIManager.getViewManagerConfig('RNKLineView').Commands[name],
-      args
-    );
+    // Dispatch through the host ref on every platform. Numeric tags force Fabric
+    // through findShadowNodeByTag_DEPRECATED, whose tree walk can race concurrent
+    // commits and native tree teardown (PRO-4970). iOS's legacy view manager
+    // interop resolves these commands by method name.
+    return Commands[name](view, ...args);
   };
 
   useImperativeHandle(ref, () => ({

@@ -5,20 +5,25 @@
 
 ### Native command dispatch
 
-On Android, imperative chart commands use `codegenNativeCommands` with the
+On Android and iOS, imperative chart commands use `codegenNativeCommands` with the
 current native host ref. Keep this path ref-based: converting the ref with
 `findNodeHandle` and calling `UIManager.dispatchViewManagerCommand` sends Fabric
-through `findShadowNodeByTag_DEPRECATED`. React Native 0.85.3's default lookup can
-race native tree teardown (PRO-4970). Ref-based dispatch avoids that lookup for
-chart commands without changing global React Native feature flags.
+through `findShadowNodeByTag_DEPRECATED`. That lookup walks the whole shadow tree
+on the JS thread and can race concurrent commits and native tree teardown
+(PRO-4970); React Native only fixes it behind the
+`fixFindShadowNodeByTagRaceCondition` flag, which is off by default. Ref-based
+dispatch avoids the lookup for chart commands without changing global React
+Native feature flags.
 
-iOS retains its existing numeric command mapping. Both paths check the current
-ref at call time and ignore commands after detachment. The native command names,
-argument order and payloads are unchanged.
+On iOS the view is a legacy view manager running through Fabric's interop layer,
+which resolves a command by its method name and prepends the view tag itself, so
+the native `RCT_EXTERN_METHOD` signatures are unchanged. Both platforms check the
+current ref at call time and ignore commands after detachment. The native command
+names, argument order and payloads are unchanged.
 
 Run `yarn test` (Node 22+) for command routing, payload, detachment and independent
 chart checks. These tests mock the native bridge; they do **not** prove the
-intermittent Android SIGSEGV is resolved. Validate a mobile build containing this
+intermittent Android or iOS SIGSEGV is resolved. Validate a mobile build containing this
 package with repeated interval changes (including 3D → weekly), market and engine
 switches, reconnects, background/foreground and idle runs, collecting native logs.
 

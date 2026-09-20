@@ -60,18 +60,12 @@ for (const platform of ['android', 'ios']) {
       const payload = { time: 123, close: 42 };
       const args = name.startsWith('get') ? [] : [payload];
       api[name](...args);
-      if (platform === 'android') {
-        assert.equal(calls.length, 1);
-        assert.equal(calls[0][0], 'host');
-        assert.equal(calls[0][1], host);
-        assert.equal(calls[0][2], name);
-      } else {
-        assert.equal(calls.length, 2);
-        assert.equal(calls[0][0], 'lookup');
-        assert.equal(calls[1][0], 'legacy');
-        assert.equal(calls[1][1], host.tag);
-        assert.equal(calls[1][2], ids[name]);
-      }
+      // Both platforms must use the host ref: a numeric tag would send Fabric
+      // through findShadowNodeByTag_DEPRECATED.
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0][0], 'host');
+      assert.equal(calls[0][1], host);
+      assert.equal(calls[0][2], name);
       const sent = calls.at(-1)[3];
       assert.equal(sent.length, args.length);
       if (args.length) assert.equal(sent[0], payload);
@@ -94,6 +88,13 @@ for (const platform of ['android', 'ios']) {
     nativeRef.current = replacement;
     api.updateLastCandlestick({ close: 12 });
     assert.equal(calls[0][1], replacement);
+  });
+
+  test(`${platform}: no command resolves a numeric tag or uses the legacy dispatcher`, async () => {
+    const { api, calls } = await mount(platform);
+    for (const name of names) api[name]({ time: 123 });
+    assert.equal(calls.length, names.length);
+    assert.ok(calls.every(([kind]) => kind === 'host'));
   });
 }
 

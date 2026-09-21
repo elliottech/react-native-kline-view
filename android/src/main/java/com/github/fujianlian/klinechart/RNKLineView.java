@@ -62,17 +62,30 @@ public class RNKLineView extends SimpleViewManager<HTKLineContainerView> {
 
 
 
+    private static final java.util.concurrent.ExecutorService OPTION_LIST_EXECUTOR =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
+
     @ReactProp(name = "optionList")
     public void setOptionList(final HTKLineContainerView containerView, String optionList) {
         if (optionList == null) {
             return;
         }
 
-        new Thread(new Runnable() {
+        // Parse in order on one worker and drop results superseded by a newer
+        // option list: per-call threads could finish out of order and leave the
+        // chart on an older dataset.
+        final int generation = ++containerView.optionListGeneration;
+        OPTION_LIST_EXECUTOR.execute(new Runnable() {
             @Override
             public void run() {
+                if (generation != containerView.optionListGeneration) {
+                    return;
+                }
                 int disableDecimalFeature = JSON.DEFAULT_PARSER_FEATURE & ~Feature.UseBigDecimal.getMask();
                 Map optionMap = (Map)JSON.parse(optionList, disableDecimalFeature);
+                if (generation != containerView.optionListGeneration) {
+                    return;
+                }
                 containerView.configManager.reloadOptionList(optionMap);
                 containerView.post(new Runnable() {
                     @Override
@@ -81,7 +94,7 @@ public class RNKLineView extends SimpleViewManager<HTKLineContainerView> {
                     }
                 });
             }
-        }).start();
+        });
     }
 
     @Override

@@ -21,6 +21,18 @@ the native `RCT_EXTERN_METHOD` signatures are unchanged. Both platforms check th
 current ref at call time and ignore commands after detachment. The native command
 names, argument order and payloads are unchanged.
 
+### Time-aware candle commands
+
+`updateLastCandlestick` and `addCandlesticksAtTheEnd` compare bar timestamps with
+the native array instead of trusting positions. A bar with the same time as the
+last native bar replaces it, a newer bar is appended and an older bar is ignored.
+A full `optionList` replacement and live commands can therefore arrive in either
+order without dropping or overwriting a candle. On Android, option lists are parsed
+on one ordered worker and a result superseded by a newer option list is discarded;
+iOS applies option lists synchronously. These paths are native-only and are not
+covered by the JS command tests: validate them on a device (return to a retained
+chart just before a bar boundary, repeat, and compare with a fresh reload).
+
 Run `yarn test` (Node 22+) for command routing, payload, detachment and independent
 chart checks. These tests mock the native bridge; they do **not** prove the
 intermittent Android or iOS SIGSEGV is resolved. Validate a mobile build containing this

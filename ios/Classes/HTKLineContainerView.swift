@@ -305,8 +305,19 @@ class HTKLineContainerView: UIView {
                 print("HTKLineContainerView: Volume MA5: \(updatedModel.maVolumeList[0].value), MA10: \(updatedModel.maVolumeList[1].value)")
             }
 
-            // Update the model array
-            configManager.modelArray[lastIndex] = updatedModel
+            // Commands are time-aware: never overwrite an older bar with a newer one,
+            // and ignore stale bars, so a dataset replacement cannot be corrupted by
+            // a live command that was issued against a different snapshot.
+            if updatedModel.id > 0, existingModel.id > 0, updatedModel.id < existingModel.id {
+                return
+            }
+            var appended = false
+            if updatedModel.id > 0, existingModel.id > 0, updatedModel.id > existingModel.id {
+                configManager.modelArray.append(updatedModel)
+                appended = true
+            } else {
+                configManager.modelArray[lastIndex] = updatedModel
+            }
 
             print("HTKLineContainerView: Updated last candlestick at index \(lastIndex) with close: \(updatedModel.close)")
             print("HTKLineContainerView: Preserved maVolumeList count: \(updatedModel.maVolumeList.count)")
@@ -314,6 +325,8 @@ class HTKLineContainerView: UIView {
             // Force redraw without reloading the entire configuration
             DispatchQueue.main.async { [weak self] in
                 print("HTKLineContainerView: Triggering redraw")
+                // An appended bar changes the scrollable width.
+                if appended { self?.klineView.reloadContentSize() }
                 self?.klineView.setNeedsDisplay()
             }
         } catch {
@@ -338,7 +351,20 @@ class HTKLineContainerView: UIView {
             }
 
             // Convert array of dictionaries to HTKLineModel array
-            let newModels = HTKLineModel.packModelArray(candlesticksArray)
+            var newModels = HTKLineModel.packModelArray(candlesticksArray)
+            // Skip bars the native array already has (same time replaces the last bar).
+            if let last = configManager.modelArray.last, last.id > 0 {
+                var replacedLast = false
+                if let same = newModels.first(where: { $0.id == last.id }) {
+                    configManager.modelArray[configManager.modelArray.count - 1] = same
+                    replacedLast = true
+                }
+                newModels = newModels.filter { $0.id <= 0 || $0.id > last.id }
+                if newModels.isEmpty, replacedLast {
+                    DispatchQueue.main.async { [weak self] in self?.klineView.setNeedsDisplay() }
+                    return
+                }
+            }
 
             if newModels.isEmpty {
                 print("HTKLineContainerView: No valid models created from input data")

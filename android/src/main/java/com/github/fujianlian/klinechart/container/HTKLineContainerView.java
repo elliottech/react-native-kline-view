@@ -25,6 +25,8 @@ public class HTKLineContainerView extends RelativeLayout {
     private ThemedReactContext reactContext;
 
     public HTKLineConfigManager configManager = new HTKLineConfigManager();
+    // Written on the UI thread, read by the option-list worker.
+    public volatile int optionListGeneration = 0;
 
     public KLineChartView klineView;
 
@@ -363,7 +365,21 @@ public class HTKLineContainerView extends RelativeLayout {
                     return;
                 }
 
-                configManager.modelArray.set(lastIndex, newEntity);
+                // Commands are time-aware: an option-list replacement can land before or
+                // after a live command, so the native array may be behind the JS data.
+                // Never overwrite an older bar with a newer one, and ignore stale bars.
+                KLineEntity currentLast = configManager.modelArray.get(configManager.modelArray.size() - 1);
+                long incomingTime = newEntity.timestamp;
+                long currentTime = currentLast != null ? currentLast.timestamp : 0;
+                if (incomingTime > 0 && currentTime > 0 && incomingTime < currentTime) {
+                    android.util.Log.d("HTKLineContainerView", "Ignoring stale last-candlestick update");
+                    return;
+                }
+                if (incomingTime > 0 && currentTime > 0 && incomingTime > currentTime) {
+                    configManager.modelArray.add(newEntity);
+                } else {
+                    configManager.modelArray.set(configManager.modelArray.size() - 1, newEntity);
+                }
                 android.util.Log.d("HTKLineContainerView", "Updated last candlestick at index: " + lastIndex);
             }
 
@@ -447,8 +463,20 @@ public class HTKLineContainerView extends RelativeLayout {
 
             // Add new entities to the end of the array with synchronization
             synchronized (configManager.modelArray) {
-                configManager.modelArray.addAll(newEntities);
-                android.util.Log.d("HTKLineContainerView", "Added " + newEntities.size() + " new candlesticks to the end");
+                // Skip bars the native array already has (same time replaces the last bar).
+                long lastTime = configManager.modelArray.isEmpty() ? 0
+                    : configManager.modelArray.get(configManager.modelArray.size() - 1).timestamp;
+                List<KLineEntity> fresh = new ArrayList<>();
+                for (KLineEntity entity : newEntities) {
+                    if (entity.timestamp <= 0 || lastTime <= 0 || entity.timestamp > lastTime) {
+                        fresh.add(entity);
+                        if (entity.timestamp > 0) lastTime = entity.timestamp;
+                    } else if (entity.timestamp == lastTime && fresh.isEmpty()) {
+                        configManager.modelArray.set(configManager.modelArray.size() - 1, entity);
+                    }
+                }
+                configManager.modelArray.addAll(fresh);
+                android.util.Log.d("HTKLineContainerView", "Added " + fresh.size() + " of " + newEntities.size() + " candlesticks to the end");
                 android.util.Log.d("HTKLineContainerView", "Total candlesticks now: " + configManager.modelArray.size());
                 android.util.Log.d("HTKLineContainerView", "Was at end before adding: " + wasAtEnd);
             }

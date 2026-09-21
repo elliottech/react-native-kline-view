@@ -25,8 +25,54 @@ public class HTKLineContainerView extends RelativeLayout {
     private ThemedReactContext reactContext;
 
     public HTKLineConfigManager configManager = new HTKLineConfigManager();
+    // Option lists are parsed off the UI thread, in order, per chart.
+    public final java.util.concurrent.ExecutorService optionListExecutor =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
     // Written on the UI thread, read by the option-list worker.
     public volatile int optionListGeneration = 0;
+    private int appliedOptionListGeneration = 0;
+    // Bars delivered by live commands while an option list is still being parsed.
+    // The parsed snapshot predates them, so they are merged back when it lands.
+    private final List<KLineEntity> barsSinceOptionList = new ArrayList<>();
+
+    /** UI thread: a new option list was handed to the parser. */
+    public int onOptionListScheduled() {
+        barsSinceOptionList.clear();
+        return ++optionListGeneration;
+    }
+
+    /** UI thread: the parsed option list has replaced the native dataset. */
+    public void onOptionListApplied(int generation) {
+        appliedOptionListGeneration = generation;
+        synchronized (configManager.modelArray) {
+            for (KLineEntity bar : barsSinceOptionList) {
+                mergeBar(bar);
+            }
+        }
+        barsSinceOptionList.clear();
+        reloadConfigManager();
+    }
+
+    private void rememberForPendingOptionList(KLineEntity bar) {
+        if (appliedOptionListGeneration != optionListGeneration) {
+            barsSinceOptionList.add(bar);
+        }
+    }
+
+    /** Same time replaces the last bar, a newer bar is appended, an older bar is ignored. */
+    private void mergeBar(KLineEntity bar) {
+        if (configManager.modelArray.isEmpty()) {
+            configManager.modelArray.add(bar);
+            return;
+        }
+        int lastIndex = configManager.modelArray.size() - 1;
+        long lastTime = configManager.modelArray.get(lastIndex).timestamp;
+        if (bar.timestamp <= 0 || lastTime <= 0 || bar.timestamp == lastTime) {
+            configManager.modelArray.set(lastIndex, bar);
+        } else if (bar.timestamp > lastTime) {
+            configManager.modelArray.add(bar);
+        }
+    }
 
     public KLineChartView klineView;
 
@@ -336,19 +382,23 @@ public class HTKLineContainerView extends RelativeLayout {
 
             // Only preserve indicator lists if the new data doesn't contain them
             android.util.Log.d("HTKLineContainerView", "Using new indicator data from React Native");
-            if (newEntity.maList.isEmpty()) {
+            // Indicator values belong to one bar: reuse them only when this update is
+            // for that same bar, never for a newer bar that will be appended.
+            boolean sameBar = newEntity.timestamp <= 0 || existingEntity.timestamp <= 0
+                || newEntity.timestamp == existingEntity.timestamp;
+            if (sameBar && newEntity.maList.isEmpty()) {
                 newEntity.maList = existingEntity.maList;
             }
-            if (newEntity.maVolumeList.isEmpty()) {
+            if (sameBar && newEntity.maVolumeList.isEmpty()) {
                 newEntity.maVolumeList = existingEntity.maVolumeList;
             }
-            if (newEntity.rsiList.isEmpty()) {
+            if (sameBar && newEntity.rsiList.isEmpty()) {
                 newEntity.rsiList = existingEntity.rsiList;
             }
-            if (newEntity.wrList.isEmpty()) {
+            if (sameBar && newEntity.wrList.isEmpty()) {
                 newEntity.wrList = existingEntity.wrList;
             }
-            if (newEntity.selectedItemList.isEmpty()) {
+            if (sameBar && newEntity.selectedItemList.isEmpty()) {
                 newEntity.selectedItemList = existingEntity.selectedItemList;
             }
 
@@ -380,6 +430,7 @@ public class HTKLineContainerView extends RelativeLayout {
                 } else {
                     configManager.modelArray.set(configManager.modelArray.size() - 1, newEntity);
                 }
+                rememberForPendingOptionList(newEntity);
                 android.util.Log.d("HTKLineContainerView", "Updated last candlestick at index: " + lastIndex);
             }
 
@@ -476,6 +527,9 @@ public class HTKLineContainerView extends RelativeLayout {
                     }
                 }
                 configManager.modelArray.addAll(fresh);
+                for (KLineEntity entity : fresh) {
+                    rememberForPendingOptionList(entity);
+                }
                 android.util.Log.d("HTKLineContainerView", "Added " + fresh.size() + " of " + newEntities.size() + " candlesticks to the end");
                 android.util.Log.d("HTKLineContainerView", "Total candlesticks now: " + configManager.modelArray.size());
                 android.util.Log.d("HTKLineContainerView", "Was at end before adding: " + wasAtEnd);

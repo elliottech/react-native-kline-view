@@ -284,19 +284,21 @@ class HTKLineContainerView: UIView {
 
             // Only preserve indicator lists if the new data doesn't contain them
             print("HTKLineContainerView: Using new indicator data from React Native")
-            if updatedModel.maList.isEmpty {
+            // Indicator values belong to one bar: reuse them only for that same bar.
+            let sameBar = updatedModel.id <= 0 || existingModel.id <= 0 || updatedModel.id == existingModel.id
+            if sameBar, updatedModel.maList.isEmpty {
                 updatedModel.maList = existingModel.maList
             }
-            if updatedModel.maVolumeList.isEmpty {
+            if sameBar, updatedModel.maVolumeList.isEmpty {
                 updatedModel.maVolumeList = existingModel.maVolumeList
             }
-            if updatedModel.rsiList.isEmpty {
+            if sameBar, updatedModel.rsiList.isEmpty {
                 updatedModel.rsiList = existingModel.rsiList
             }
-            if updatedModel.wrList.isEmpty {
+            if sameBar, updatedModel.wrList.isEmpty {
                 updatedModel.wrList = existingModel.wrList
             }
-            if updatedModel.selectedItemList.isEmpty {
+            if sameBar, updatedModel.selectedItemList.isEmpty {
                 updatedModel.selectedItemList = existingModel.selectedItemList
             }
 

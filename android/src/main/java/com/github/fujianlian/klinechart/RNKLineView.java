@@ -62,8 +62,11 @@ public class RNKLineView extends SimpleViewManager<HTKLineContainerView> {
 
 
 
-    private static final java.util.concurrent.ExecutorService OPTION_LIST_EXECUTOR =
-        java.util.concurrent.Executors.newSingleThreadExecutor();
+    @Override
+    public void onDropViewInstance(@Nonnull HTKLineContainerView containerView) {
+        super.onDropViewInstance(containerView);
+        containerView.optionListExecutor.shutdownNow();
+    }
 
     @ReactProp(name = "optionList")
     public void setOptionList(final HTKLineContainerView containerView, String optionList) {
@@ -71,11 +74,11 @@ public class RNKLineView extends SimpleViewManager<HTKLineContainerView> {
             return;
         }
 
-        // Parse in order on one worker and drop results superseded by a newer
-        // option list: per-call threads could finish out of order and leave the
-        // chart on an older dataset.
-        final int generation = ++containerView.optionListGeneration;
-        OPTION_LIST_EXECUTOR.execute(new Runnable() {
+        // Parse in order on this chart's worker and drop results superseded by a
+        // newer option list: per-call threads could finish out of order and leave
+        // the chart on an older dataset.
+        final int generation = containerView.onOptionListScheduled();
+        containerView.optionListExecutor.execute(new Runnable() {
             @Override
             public void run() {
                 if (generation != containerView.optionListGeneration) {
@@ -90,7 +93,9 @@ public class RNKLineView extends SimpleViewManager<HTKLineContainerView> {
                 containerView.post(new Runnable() {
                     @Override
                     public void run() {
-                        containerView.reloadConfigManager();
+                        // Merge bars delivered by live commands while this snapshot
+                        // was being parsed, then redraw.
+                        containerView.onOptionListApplied(generation);
                     }
                 });
             }

@@ -28,8 +28,11 @@ the native array instead of trusting positions. A bar with the same time as the
 last native bar replaces it, a newer bar is appended and an older bar is ignored.
 A full `optionList` replacement and live commands can therefore arrive in either
 order without dropping or overwriting a candle. On Android, option lists are parsed
-on one ordered worker and a result superseded by a newer option list is discarded;
-iOS applies option lists synchronously. These paths are native-only and are not
+in order on a per-chart worker and a result superseded by a newer option list is
+discarded. Bars delivered by live commands while an option list is still being
+parsed are merged back, by time, when that snapshot lands. iOS applies option lists
+synchronously, so it has no such window. Missing indicator lists are reused only
+for an update to the same bar, never for a newer bar that is appended. These paths are native-only and are not
 covered by the JS command tests: validate them on a device (return to a retained
 chart just before a bar boundary, repeat, and compare with a fresh reload).
 

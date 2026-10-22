@@ -24,7 +24,7 @@ jobs:
       # Setup Node.js and npm
       - uses: actions/setup-node@v4
         with:
-          node-version: "22.19.0"
+          node-version: "22.23.4"
           registry-url: 'https://npm.pkg.github.com'
           scope: '@elliottech'
 

@@ -36,7 +36,7 @@
     "typescript": "5.0.4"
   },
   "resolutions": {
-    "shell-quote": "^1.8.4"
+    "shell-quote": "^1.11.0"
   },
   "engines": {
     "node": ">=18"
